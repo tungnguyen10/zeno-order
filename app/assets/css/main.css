@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --brand: 21 84 240;
+  --background: 248 250 252;
+  --surface: 255 255 255;
+  --text: 16 24 40;
+  --muted: 102 112 133;
+  --border: 234 236 240;
+  --success: 18 183 106;
+  --warning: 247 144 9;
+  --danger: 240 68 56;
+  --radius-card: 1.25rem;
+  --shadow-card: 0 18px 50px rgb(16 24 40 / 8%);
+}
+
+html {
+  background: rgb(var(--background));
+  color: rgb(var(--text));
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+

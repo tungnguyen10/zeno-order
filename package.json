@@ -1,0 +1,48 @@
+{
+  "name": "zeno-order",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck",
+    "test": "npm run test:unit && npm run test:nuxt",
+    "test:unit": "vitest run --project unit",
+    "test:nuxt": "vitest run --project nuxt",
+    "test:e2e": "playwright test",
+    "test:db": "supabase test db"
+  },
+  "dependencies": {
+    "@nuxt/eslint": "1.17.0",
+    "@nuxtjs/supabase": "2.0.10",
+    "@pinia/nuxt": "1.0.2",
+    "@supabase/supabase-js": "2.116.0",
+    "@tailwindcss/vite": "4.3.3",
+    "nuxt": "4.5.2",
+    "pinia": "4.0.3",
+    "tailwindcss": "4.3.3",
+    "vue": "3.5.42",
+    "vue-router": "5.3.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@nuxt/test-utils": "4.3.2",
+    "@playwright/test": "1.63.0",
+    "@testing-library/vue": "8.1.0",
+    "@vitest/coverage-v8": "5.0.0",
+    "@vue/test-utils": "2.5.0",
+    "eslint": "10.10.0",
+    "h3-next": "npm:h3@2.0.1-rc.31",
+    "happy-dom": "20.14.5",
+    "supabase": "2.117.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0",
+    "vue-tsc": "3.3.11"
+  }
+}

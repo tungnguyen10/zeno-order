@@ -1,0 +1,15 @@
+node_modules
+.nuxt
+.output
+.data
+.cache
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+.DS_Store
+supabase/.branches
+supabase/.temp
+
