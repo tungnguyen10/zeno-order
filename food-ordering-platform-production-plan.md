@@ -1218,15 +1218,18 @@ Client payload:
 
 ```json
 {
-  "storeId": "uuid",
+  "publicSlug": "mochi-cafe",
   "fulfillmentType": "delivery",
   "customer": {
     "name": "Thanh Tung",
     "phone": "0900000000"
   },
   "delivery": {
-    "address": "..."
+    "address": "...",
+    "note": "Gọi trước khi giao"
   },
+  "customerNote": "Không lấy muỗng nhựa",
+  "paymentMethod": "cash",
   "items": [
     {
       "productId": "uuid",
@@ -1235,7 +1238,7 @@ Client payload:
       "note": "Ít đá"
     }
   ],
-  "idempotencyKey": "ordreq_xxx",
+  "idempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
   "turnstileToken": "..."
 }
 ```
@@ -1463,7 +1466,12 @@ browser close/reopen
 temporary connectivity loss
 ```
 
-Cart storage should be namespaced by `store_id`.
+Because public clients do not receive internal store UUIDs, cart storage is
+namespaced by the validated `public_slug`:
+
+```text
+zeno-order:cart:v1:{publicSlug}
+```
 
 Do not mix products from different stores in one cart.
 
