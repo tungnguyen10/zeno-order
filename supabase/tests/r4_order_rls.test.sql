@@ -39,7 +39,8 @@ select results_eq($$select product_name from public.order_items$$,$$values ('A':
 select results_eq($$select option_name from public.order_item_options$$,$$values ('S'::text)$$,'staff reads only assigned-store option snapshots');
 select is((select count(*) from public.order_status_history),1::bigint,'staff reads only assigned-store history');
 select throws_ok($$insert into public.orders (store_id) values ('22000000-0000-0000-0000-000000000001')$$,'42501',null,'authenticated cannot insert orders directly');
-select throws_ok($$update public.orders set status='confirmed'$$,'42501',null,'authenticated cannot update orders directly');
+select lives_ok($$update public.orders set status='confirmed' where order_number='B1001'$$,'assigned staff can perform a valid R5 status update');
+select is((select status from public.orders where order_number='B1001'),'confirmed','status update remains tenant-scoped');
 reset role;
 
 set local role authenticated;
