@@ -2,6 +2,8 @@
 
 :root {
   --brand: 21 84 240;
+  --brand-soft: 232 240 255;
+  --accent: 124 58 237;
   --background: 248 250 252;
   --surface: 255 255 255;
   --text: 16 24 40;
@@ -10,6 +12,7 @@
   --success: 18 183 106;
   --warning: 247 144 9;
   --danger: 240 68 56;
+  --danger-soft: 254 228 226;
   --radius-card: 1.25rem;
   --shadow-card: 0 18px 50px rgb(16 24 40 / 8%);
 }
@@ -24,3 +27,14 @@ body {
   margin: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
