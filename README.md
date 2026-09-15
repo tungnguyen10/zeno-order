@@ -1,6 +1,6 @@
 # Zeno Order
 
-Food Ordering Platform được triển khai theo vertical slices. Repository hiện chứa **R1 — Tenant Skeleton**: nền Nuxt, tenant schema, RLS, public store resolver và storefront SSR tại `/s/:publicSlug`.
+Food Ordering Platform được triển khai theo vertical slices. Repository hiện chứa **R1 — Tenant Skeleton** và **R2 — Catalog Storefront**: nền tenant/RLS, catalog tenant-safe, public resolver, availability tươi và storefront SSR mobile-first tại `/s/:publicSlug`.
 
 ## Yêu cầu
 
@@ -29,7 +29,15 @@ Chạy ứng dụng:
 npm run dev
 ```
 
-Mở [http://127.0.0.1:3000/s/mochi-cafe](http://127.0.0.1:3000/s/mochi-cafe). Seed chỉ dành cho local, tạo merchant `merchant@local.test` với mật khẩu `local-only-password`.
+Mở [http://127.0.0.1:3000/s/mochi-cafe](http://127.0.0.1:3000/s/mochi-cafe). Reset local nạp `seed-demo.sql` trước, sau đó `seed.sql`; phần sau tạo merchant local `merchant@local.test` với mật khẩu `local-only-password`.
+
+## Public storefront API
+
+- `GET /api/storefront/:publicSlug`: profile tương thích R1, cache dùng chung 120 giây.
+- `GET /api/storefront/:publicSlug/catalog`: menu, section, sản phẩm và option đã publish; `Cache-Control: public, max-age=0, s-maxage=120, stale-while-revalidate=60`.
+- `GET /api/storefront/:publicSlug/availability`: trạng thái cửa hàng và sold-out hiện tại; luôn dùng `Cache-Control: no-store`.
+
+Public API không trả store/organization UUID. Product và option UUID là opaque selector để các lát cắt sau gửi lựa chọn, không phải quyền truy cập. Giá tiền là chuỗi số nguyên thập phân để không mất độ chính xác của PostgreSQL `bigint`.
 
 ## Lệnh kiểm tra
 
@@ -55,21 +63,36 @@ npm run test:e2e
 
 `npm run verify` chạy lint, typecheck, test TypeScript/Nuxt, production build và kiểm tra client bundle. Database và E2E được tách riêng vì cần Docker.
 
-## Cấu trúc R1
+## Cấu trúc Phase 1 hiện tại
 
-- `app/pages/s/[publicSlug]/`: storefront shell mobile-first, render bằng SSR.
-- `server/api/storefront/[publicSlug].get.ts`: endpoint Nitro dùng public client không mang session người dùng và RPC giới hạn quyền.
-- `server/domain/`: validation và mapping sang public DTO, không chứa UUID nội bộ.
-- `supabase/migrations/`: tenant foundation, RLS helpers/policies và public resolver RPC.
+- `app/pages/s/[publicSlug]/`: storefront catalog mobile-first, render bằng SSR.
+- `server/api/storefront/`: các endpoint Nitro dùng public client không mang session người dùng và RPC giới hạn quyền.
+- `server/domain/`: validation, DTO mapping và resolver availability thuần theo IANA timezone.
+- `supabase/migrations/`: tenant/catalog foundation, RLS helpers/policies và public resolver RPC.
 - `supabase/tests/`: pgTAP constraints và tenant/role access matrix.
 - `test/unit`, `test/nuxt`, `test/e2e`: ba tầng test độc lập.
 
-## Nguyên tắc bảo mật R1
+## Nguyên tắc bảo mật R1–R2
 
 - `public_slug` unique toàn cục, lowercase kebab-case, không dùng reserved slug và không đổi sau khi publish.
 - Anon không có quyền `SELECT` trực tiếp trên business tables.
-- Public storefront chỉ gọi `get_public_store_by_slug` qua Nitro bằng publishable key.
+- Public storefront chỉ gọi ba read-only RPC được allow-list qua Nitro bằng publishable key.
 - Organization owner/admin kế thừa quyền trên tất cả store thuộc organization; store role chỉ thấy store được gán.
 - `NUXT_SUPABASE_SECRET_KEY` là server-only và không được dùng như generic database client.
+
+## Workflow Supabase development đã link
+
+Máy phát triển này hiện chưa có Docker/Podman, nên local reset vẫn là gate bắt buộc trong CI. Khi cần xác minh trên development project đã link, chạy tuần tự để tránh tranh chấp login role:
+
+```bash
+npx supabase db push --linked --dry-run --skip-vault --agent no
+npx supabase db push --linked --skip-vault --yes --agent no
+npx supabase db query --linked --file supabase/seed-demo.sql --agent no
+npx supabase db query --linked --file supabase/tests/r2_catalog_foundation.test.sql --agent no
+npx supabase db query --linked --file supabase/tests/r2_catalog_rls.test.sql --agent no
+npx supabase db advisors --linked --type all --level warn --fail-on error --agent no
+```
+
+Không chạy `supabase/seed.sql` trên remote vì file đó chứa tài khoản/mật khẩu chỉ dành cho local. Advisors sẽ cảnh báo ba `SECURITY DEFINER` RPC có quyền anon/authenticated; đây là exposure có chủ ý, được giới hạn payload và kiểm tra bằng pgTAP.
 
 Hai tài liệu kiến trúc nguồn là `architecture-p0-locked-baseline.md` và `food-ordering-platform-production-plan.md`; baseline P0 được ưu tiên nếu có mâu thuẫn.

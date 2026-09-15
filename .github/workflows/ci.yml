@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify-r1:
+  verify-phase-1:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -72,7 +72,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Storefront smoke tests
+      - name: Storefront contract tests
         run: npm run test:e2e
 
       - name: Stop local Supabase
