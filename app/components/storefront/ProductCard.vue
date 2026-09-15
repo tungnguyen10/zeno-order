@@ -5,6 +5,11 @@ defineProps<{
   product: StorefrontCatalog['products'][number]
   currency: string
   isAvailable: boolean
+  orderingEnabled: boolean
+}>()
+
+defineEmits<{
+  select: []
 }>()
 </script>
 
@@ -34,6 +39,14 @@ defineProps<{
           Tạm hết món
         </span>
       </div>
+      <button
+        type="button"
+        class="mt-3 rounded-xl bg-[rgb(var(--brand))] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[rgb(var(--border))] disabled:text-[rgb(var(--muted))]"
+        :disabled="!isAvailable || !orderingEnabled"
+        @click="$emit('select')"
+      >
+        {{ orderingEnabled ? 'Chọn món' : 'Cửa hàng đang đóng' }}
+      </button>
     </div>
 
     <div class="aspect-square overflow-hidden rounded-2xl bg-[rgb(var(--brand-soft))]">

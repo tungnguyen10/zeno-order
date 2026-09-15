@@ -36,8 +36,16 @@ const catalog = {
     { id: 'product-2', name: 'Mochi dâu', slug: 'mochi-dau', description: null, basePrice: '29000', imagePath: null },
     { id: 'product-3', name: 'Món thiếu trạng thái', slug: 'missing-state', description: null, basePrice: '10000', imagePath: null },
   ],
-  optionGroups: [],
-  productOptionGroups: [],
+  optionGroups: [{
+    id: 'size',
+    name: 'Kích cỡ',
+    selectionType: 'single' as const,
+    required: true,
+    minSelect: 1,
+    maxSelect: 1,
+    values: [{ id: 'small', name: 'Nhỏ', priceAdjustment: '0', isDefault: true }],
+  }],
+  productOptionGroups: [{ productId: 'product-1', optionGroupId: 'size' }],
 }
 
 const availability = {
@@ -55,6 +63,7 @@ const availability = {
 describe('storefront catalog page', () => {
   beforeEach(() => {
     useFetchMock.mockReset()
+    localStorage.clear()
   })
 
   it('SSR-renders ordered sections, products, money and fresh availability', async () => {
@@ -82,8 +91,17 @@ describe('storefront catalog page', () => {
       expect.stringContaining('Mochi dâu'),
       expect.stringContaining('Món thiếu trạng thái'),
     ])
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toMatch(/thêm vào giỏ|thanh toán|theo dõi đơn/i)
+    const productCards = wrapper.findAll('[data-product-card]')
+    expect(productCards[0]?.get('button').attributes('disabled')).toBeUndefined()
+    expect(productCards[1]?.get('button').attributes('disabled')).toBeDefined()
+    expect(productCards[2]?.get('button').attributes('disabled')).toBeDefined()
+
+    await productCards[0]?.get('button').trigger('click')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Cà phê sữa đá')
+    await wrapper.get('[role="dialog"] form').trigger('submit')
+    expect(wrapper.text()).toContain('1 món')
+    expect(wrapper.get('[data-cart-bar]').attributes('href')).toBe('/s/mochi-cafe/cart')
+    expect(localStorage.getItem('zeno-order:cart:v1:mochi-cafe')).toContain('product-1')
 
     expect(useFetchMock).toHaveBeenNthCalledWith(1, '/api/storefront/mochi-cafe/catalog', {
       key: 'storefront-catalog:mochi-cafe',

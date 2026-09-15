@@ -6,6 +6,11 @@ defineProps<{
   products: StorefrontCatalog['products']
   currency: string
   availabilityByProduct: ReadonlyMap<string, boolean>
+  orderingEnabled: boolean
+}>()
+
+defineEmits<{
+  select: [product: StorefrontCatalog['products'][number]]
 }>()
 </script>
 
@@ -34,6 +39,8 @@ defineProps<{
         :product="product"
         :currency="currency"
         :is-available="availabilityByProduct.get(product.id) === true"
+        :ordering-enabled="orderingEnabled"
+        @select="$emit('select', product)"
       />
     </div>
   </section>

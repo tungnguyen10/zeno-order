@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { StorefrontAvailability } from '../../../../shared/types/availability'
 import type { StorefrontCatalog } from '../../../../shared/types/catalog'
+import type { NewCartItem } from '../../../../shared/types/cart'
 
 const route = useRoute()
 const publicSlug = String(route.params.publicSlug)
@@ -28,6 +29,7 @@ if (pageError || !catalog || !availability) {
   })
 }
 
+const storeCurrency = catalog.store.currency
 const productsById = new Map(catalog.products.map(product => [product.id, product]))
 const sectionViews = catalog.sections
   .map(section => ({
@@ -42,6 +44,30 @@ const visibleSections = sectionViews.map(view => view.section)
 const availabilityByProduct = new Map(
   availability.products.map(product => [product.productId, product.isAvailable]),
 )
+const selectedProduct = ref<StorefrontCatalog['products'][number] | null>(null)
+const cart = useCartStore()
+
+onMounted(() => {
+  cart.hydrate(publicSlug, storeCurrency)
+})
+
+const selectedOptionGroups = computed(() => {
+  if (!selectedProduct.value) {
+    return []
+  }
+
+  const linkedGroupIds = new Set(
+    catalog.productOptionGroups
+      .filter(link => link.productId === selectedProduct.value?.id)
+      .map(link => link.optionGroupId),
+  )
+  return catalog.optionGroups.filter(group => linkedGroupIds.has(group.id))
+})
+
+function addConfiguredItem(item: NewCartItem) {
+  cart.addItem(publicSlug, storeCurrency, item)
+  selectedProduct.value = null
+}
 
 useSeoMeta({
   title: `${catalog.store.name} | Đặt món online`,
@@ -74,8 +100,10 @@ useSeoMeta({
             :key="view.section.id"
             :section="view.section"
             :products="view.products"
-            :currency="catalog.store.currency"
+            :currency="storeCurrency"
             :availability-by-product="availabilityByProduct"
+            :ordering-enabled="availability.orderingEnabled"
+            @select="selectedProduct = $event"
           />
         </div>
 
@@ -91,6 +119,23 @@ useSeoMeta({
           </p>
         </section>
       </div>
+
+      <StorefrontProductConfigurator
+        v-if="selectedProduct"
+        :open="true"
+        :product="selectedProduct"
+        :option-groups="selectedOptionGroups"
+        :currency="storeCurrency"
+        @close="selectedProduct = null"
+        @add="addConfiguredItem"
+      />
+
+      <StorefrontCartBar
+        :public-slug="publicSlug"
+        :item-count="cart.itemCount(publicSlug)"
+        :subtotal="cart.subtotal(publicSlug)"
+        :currency="storeCurrency"
+      />
     </div>
   </main>
 </template>
