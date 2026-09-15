@@ -18,10 +18,13 @@ export default defineEventHandler(async (event) => {
   const service = createPublicStoreService(repository)
 
   try {
-    return await service.resolve(getRouterParam(event, 'publicSlug') ?? '')
+    const store = await service.resolve(getRouterParam(event, 'publicSlug') ?? '')
+    setResponseHeader(event, 'Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=60')
+    return store
   }
   catch (error) {
     if (error instanceof StoreNotFoundError) {
+      setResponseHeader(event, 'Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=60')
       setResponseStatus(event, error.statusCode)
       return {
         error: {
@@ -31,6 +34,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    setResponseHeader(event, 'Cache-Control', 'no-store')
     throw createError({
       statusCode: 500,
       statusMessage: 'Không thể tải thông tin cửa hàng.',
