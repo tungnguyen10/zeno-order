@@ -24,6 +24,7 @@ insert into public.stores (
   currency,
   is_active,
   published_at,
+  manual_open_state,
   delivery_enabled,
   pickup_enabled
 )
@@ -39,6 +40,7 @@ values (
   'VND',
   true,
   now(),
+  'open',
   true,
   true
 )
@@ -51,6 +53,7 @@ on conflict (id) do update set
   currency = excluded.currency,
   is_active = excluded.is_active,
   published_at = coalesce(public.stores.published_at, excluded.published_at),
+  manual_open_state = excluded.manual_open_state,
   delivery_enabled = excluded.delivery_enabled,
   pickup_enabled = excluded.pickup_enabled;
 

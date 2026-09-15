@@ -30,13 +30,51 @@ test('renders the seeded catalog in deterministic order on mobile Chromium', asy
   expect(html).not.toContain(organizationId)
 })
 
-test('does not render R3/R4 interactions in the R2 storefront', async ({ page }) => {
+test('configures, persists and reviews a store-isolated cart before the checkout shell', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('zeno-order:cart:v1:tea-house', JSON.stringify({
+      version: 1,
+      publicSlug: 'tea-house',
+      currency: 'VND',
+      items: [],
+    }))
+  })
   await page.goto('/s/mochi-cafe')
+  await page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as Element & { __vue_app__?: unknown })?.__vue_app__))
 
-  await expect(page.locator('[role="dialog"]')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /thêm vào giỏ|thanh toán/i })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: /giỏ hàng|thanh toán|theo dõi đơn/i })).toHaveCount(0)
-  expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([])
+  const coffeeCard = page.locator('[data-product-card]').filter({ hasText: 'Cà phê sữa đá' })
+  await coffeeCard.getByRole('button', { name: 'Chọn món' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Cà phê sữa đá' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel('Lớn').check()
+  await dialog.getByLabel('Trân châu').check()
+  await dialog.getByLabel('Ghi chú cho món').fill('Ít đá')
+  await dialog.getByRole('button', { name: /Thêm vào giỏ/ }).click()
+
+  const cartBar = page.locator('[data-cart-bar]')
+  await expect(cartBar).toContainText('1 món')
+  await expect(cartBar).toContainText('55.000')
+  const storageKeys = await page.evaluate(() => Object.keys(localStorage)
+    .filter(key => key.startsWith('zeno-order:cart:'))
+    .sort())
+  expect(storageKeys).toEqual([
+    'zeno-order:cart:v1:mochi-cafe',
+    'zeno-order:cart:v1:tea-house',
+  ])
+
+  await page.reload()
+  await expect(page.locator('[data-cart-bar]')).toContainText('1 món')
+  await page.locator('[data-cart-bar]').click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Giỏ hàng')
+  await expect(page.locator('[data-cart-item]')).toContainText('Lớn')
+  await expect(page.locator('[data-cart-item]')).toContainText('Trân châu')
+  await expect(page.locator('[data-cart-subtotal]')).toContainText('55.000')
+
+  await page.locator('[data-checkout-link]').click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Thanh toán')
+  await expect(page.locator('[data-checkout-total]')).toContainText('55.000')
+  await expect(page.getByText('Đặt đơn sẽ được mở ở R4', { exact: false })).toBeVisible()
+  await expect(page.locator('form')).toHaveCount(0)
 })
 
 test('returns the same safe 404 for an unknown store', async ({ page, request }) => {

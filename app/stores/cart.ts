@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { z } from 'zod'
 
-import { publicSlugSchema } from '../../shared/schemas/public-slug'
+import { publicSlugSchema } from '#shared/schemas/public-slug'
 import type {
   NewCartItem,
   StoreCartDocument,

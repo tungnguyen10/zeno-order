@@ -72,7 +72,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Storefront contract tests
+      - name: Customer storefront flow tests
         run: npm run test:e2e
 
       - name: Stop local Supabase

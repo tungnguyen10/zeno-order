@@ -1,6 +1,6 @@
 # Zeno Order
 
-Food Ordering Platform được triển khai theo vertical slices. Repository hiện chứa **R1 — Tenant Skeleton** và **R2 — Catalog Storefront**: nền tenant/RLS, catalog tenant-safe, public resolver, availability tươi và storefront SSR mobile-first tại `/s/:publicSlug`.
+Food Ordering Platform được triển khai theo vertical slices. Repository hiện chứa **R1 — Tenant Skeleton**, **R2 — Catalog Storefront** và **R3 — Product Configuration & Cart**: nền tenant/RLS, catalog tenant-safe, storefront SSR mobile-first, product configurator và giỏ hàng local theo từng store.
 
 ## Yêu cầu
 
@@ -39,6 +39,14 @@ Mở [http://127.0.0.1:3000/s/mochi-cafe](http://127.0.0.1:3000/s/mochi-cafe). R
 
 Public API không trả store/organization UUID. Product và option UUID là opaque selector để các lát cắt sau gửi lựa chọn, không phải quyền truy cập. Giá tiền là chuỗi số nguyên thập phân để không mất độ chính xác của PostgreSQL `bigint`.
 
+## Product configurator và giỏ hàng R3
+
+- Chọn món tại `/s/:publicSlug`; generic option groups được kiểm tra ở client trước khi thêm.
+- Giỏ hàng tại `/s/:publicSlug/cart`; quantity từ 1–99, có thể xóa dòng và xem tạm tính lossless.
+- Checkout shell tại `/s/:publicSlug/checkout`; R3 không gửi đơn hay ghi dữ liệu vào Supabase.
+- Mỗi store lưu riêng trong LocalStorage với key `zeno-order:cart:v1:{publicSlug}`. Payload sai version, sai store/currency hoặc không hợp lệ sẽ bị loại bỏ.
+- Giá trong giỏ chỉ là preview từ catalog snapshot. R4 phải tính lại hoàn toàn ở server trước khi tạo đơn.
+
 ## Lệnh kiểm tra
 
 ```bash
@@ -65,20 +73,23 @@ npm run test:e2e
 
 ## Cấu trúc Phase 1 hiện tại
 
-- `app/pages/s/[publicSlug]/`: storefront catalog mobile-first, render bằng SSR.
+- `app/pages/s/[publicSlug]/`: storefront catalog SSR, giỏ hàng và checkout shell mobile-first.
+- `app/stores/cart.ts`: Pinia cart versioned, store-scoped và persist ở browser.
+- `app/domain/`: validation option và phép tính tiền bằng `BigInt`.
 - `server/api/storefront/`: các endpoint Nitro dùng public client không mang session người dùng và RPC giới hạn quyền.
 - `server/domain/`: validation, DTO mapping và resolver availability thuần theo IANA timezone.
 - `supabase/migrations/`: tenant/catalog foundation, RLS helpers/policies và public resolver RPC.
 - `supabase/tests/`: pgTAP constraints và tenant/role access matrix.
 - `test/unit`, `test/nuxt`, `test/e2e`: ba tầng test độc lập.
 
-## Nguyên tắc bảo mật R1–R2
+## Nguyên tắc bảo mật R1–R3
 
 - `public_slug` unique toàn cục, lowercase kebab-case, không dùng reserved slug và không đổi sau khi publish.
 - Anon không có quyền `SELECT` trực tiếp trên business tables.
 - Public storefront chỉ gọi ba read-only RPC được allow-list qua Nitro bằng publishable key.
 - Organization owner/admin kế thừa quyền trên tất cả store thuộc organization; store role chỉ thấy store được gán.
 - `NUXT_SUPABASE_SECRET_KEY` là server-only và không được dùng như generic database client.
+- Cart R3 không phải nguồn giá tin cậy và không tạo quyền truy cập database; mọi dữ liệu client sẽ được R4 xác minh lại.
 
 ## Workflow Supabase development đã link
 
