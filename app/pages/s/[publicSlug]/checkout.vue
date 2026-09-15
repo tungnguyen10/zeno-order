@@ -60,7 +60,7 @@ async function submitOrder(draft: CheckoutDraft) {
     })
     cart.clear(publicSlug)
     attempt.reset()
-    await navigateTo(response.trackingPath)
+    await navigateTo(response.trackingPath, { external: true })
   }
   catch (error) {
     const payload = (error as { data?: { error?: { message?: string } } }).data

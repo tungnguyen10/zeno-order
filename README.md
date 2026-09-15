@@ -1,6 +1,6 @@
 # Zeno Order
 
-Food Ordering Platform được triển khai theo vertical slices. Repository hiện chứa **R1 — Tenant Skeleton**, **R2 — Catalog Storefront** và **R3 — Product Configuration & Cart**: nền tenant/RLS, catalog tenant-safe, storefront SSR mobile-first, product configurator và giỏ hàng local theo từng store.
+Food Ordering Platform được triển khai theo vertical slices. Repository hiện chứa **R1–R4**: nền tenant/RLS, catalog tenant-safe, storefront SSR mobile-first, giỏ hàng theo store, atomic checkout và token-protected order tracking.
 
 ## Yêu cầu
 
@@ -21,7 +21,8 @@ Tạo `.env` từ `.env.example`, sau đó lấy giá trị do lệnh `supabase 
 
 - `API_URL` → `NUXT_PUBLIC_SUPABASE_URL`
 - `PUBLISHABLE_KEY` (hoặc `ANON_KEY` trên CLI cũ) → `NUXT_PUBLIC_SUPABASE_KEY`
-- `SECRET_KEY` chỉ ánh xạ sang `NUXT_SUPABASE_SECRET_KEY` khi một tác vụ server đặc quyền thực sự cần nó. R1 không dùng secret/service-role để đọc storefront công khai.
+- `SECRET_KEY` → `NUXT_SUPABASE_SECRET_KEY`; khóa này chỉ được client order chuyên dụng phía server dùng để gọi ba RPC đặc quyền của checkout.
+- Cấu hình Turnstile và tracking HMAC theo `.env.example`. Chỉ dùng bộ Turnstile dummy key chính thức cho local/test; production phải dùng key riêng và tracking secret ngẫu nhiên tối thiểu 32 ký tự.
 
 Chạy ứng dụng:
 
@@ -39,13 +40,14 @@ Mở [http://127.0.0.1:3000/s/mochi-cafe](http://127.0.0.1:3000/s/mochi-cafe). R
 
 Public API không trả store/organization UUID. Product và option UUID là opaque selector để các lát cắt sau gửi lựa chọn, không phải quyền truy cập. Giá tiền là chuỗi số nguyên thập phân để không mất độ chính xác của PostgreSQL `bigint`.
 
-## Product configurator và giỏ hàng R3
+## Product configurator, giỏ hàng và checkout
 
 - Chọn món tại `/s/:publicSlug`; generic option groups được kiểm tra ở client trước khi thêm.
 - Giỏ hàng tại `/s/:publicSlug/cart`; quantity từ 1–99, có thể xóa dòng và xem tạm tính lossless.
-- Checkout shell tại `/s/:publicSlug/checkout`; R3 không gửi đơn hay ghi dữ liệu vào Supabase.
+- Checkout tại `/s/:publicSlug/checkout` xác minh Turnstile, gửi payload không có giá và chỉ ghi đơn qua atomic PostgreSQL RPC.
 - Mỗi store lưu riêng trong LocalStorage với key `zeno-order:cart:v1:{publicSlug}`. Payload sai version, sai store/currency hoặc không hợp lệ sẽ bị loại bỏ.
-- Giá trong giỏ chỉ là preview từ catalog snapshot. R4 phải tính lại hoàn toàn ở server trước khi tạo đơn.
+- Giá trong giỏ chỉ là preview từ catalog snapshot. PostgreSQL tính lại sản phẩm, option, phí giao và tổng tiền trong cùng transaction.
+- Thành công chuyển đến `/s/:publicSlug/order/:orderNumber#t=...`; trang tracking chuyển token vào sessionStorage và xóa fragment ngay, API chỉ nhận token qua Bearer header.
 
 ## Lệnh kiểm tra
 
@@ -82,14 +84,16 @@ npm run test:e2e
 - `supabase/tests/`: pgTAP constraints và tenant/role access matrix.
 - `test/unit`, `test/nuxt`, `test/e2e`: ba tầng test độc lập.
 
-## Nguyên tắc bảo mật R1–R3
+## Nguyên tắc bảo mật R1–R4
 
 - `public_slug` unique toàn cục, lowercase kebab-case, không dùng reserved slug và không đổi sau khi publish.
 - Anon không có quyền `SELECT` trực tiếp trên business tables.
 - Public storefront chỉ gọi ba read-only RPC được allow-list qua Nitro bằng publishable key.
 - Organization owner/admin kế thừa quyền trên tất cả store thuộc organization; store role chỉ thấy store được gán.
 - `NUXT_SUPABASE_SECRET_KEY` là server-only và không được dùng như generic database client.
-- Cart R3 không phải nguồn giá tin cậy và không tạo quyền truy cập database; mọi dữ liệu client sẽ được R4 xác minh lại.
+- Cart không phải nguồn giá tin cậy; mọi dữ liệu client được PostgreSQL xác minh lại.
+- Rate-limit table chỉ lưu SHA-256 của địa chỉ client. Database chỉ lưu SHA-256 của tracking token cùng phiên bản HMAC, không lưu raw token.
+- Retry cùng UUID/payload trả đúng một đơn; tái sử dụng UUID với payload khác trả conflict.
 
 ## Workflow Supabase development đã link
 

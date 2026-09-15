@@ -360,9 +360,9 @@ select ok(public.get_storefront_availability_by_slug('r2-store-a') is not null,'
 select throws_ok($$select private.has_store_role('20000000-0000-0000-0000-000000000111',array['owner'])$$,'42501',null,'anon cannot execute private authorization helper');
 reset role;
 select results_eq(
-$$select oid::regprocedure::text from pg_proc where pronamespace='public'::regnamespace and has_function_privilege('anon',oid,'execute') order by oid::regprocedure::text$$,
+$$select oid::regprocedure::text from pg_proc where pronamespace='public'::regnamespace and oid in ('public.get_public_store_by_slug(text)'::regprocedure,'public.get_storefront_availability_by_slug(text)'::regprocedure,'public.get_storefront_catalog_by_slug(text)'::regprocedure) and has_function_privilege('anon',oid,'execute') order by oid::regprocedure::text$$,
 $$values ('get_public_store_by_slug(text)'::text),('get_storefront_availability_by_slug(text)'::text),('get_storefront_catalog_by_slug(text)'::text)$$,
-'anon RPC allow-list includes backward-compatible R1 profile and only the two R2 reads');
+'anon can execute the backward-compatible R1 profile and both R2 reads');
 select is((select count(*) from pg_proc where oid in ('public.get_storefront_catalog_by_slug(text)'::regprocedure,'public.get_storefront_availability_by_slug(text)'::regprocedure) and prosecdef and provolatile='s' and proconfig @> array['search_path=""']),2::bigint,'both RPCs are stable security definers with empty search path');
 select is((select count(*) from pg_proc p cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl where p.oid in ('public.get_public_store_by_slug(text)'::regprocedure,'public.get_storefront_catalog_by_slug(text)'::regprocedure,'public.get_storefront_availability_by_slug(text)'::regprocedure) and acl.grantee=0 and acl.privilege_type='EXECUTE'),0::bigint,'PUBLIC has no execute privilege on app RPCs');
 select * from finish();

@@ -30,7 +30,7 @@ test('renders the seeded catalog in deterministic order on mobile Chromium', asy
   expect(html).not.toContain(organizationId)
 })
 
-test('configures, persists and reviews a store-isolated cart before the checkout shell', async ({ page }) => {
+test('configures, persists, checks out and reloads secure tracking on mobile', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('zeno-order:cart:v1:tea-house', JSON.stringify({
       version: 1,
@@ -73,8 +73,22 @@ test('configures, persists and reviews a store-isolated cart before the checkout
   await page.locator('[data-checkout-link]').click()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Thanh toán')
   await expect(page.locator('[data-checkout-total]')).toContainText('55.000')
-  await expect(page.getByText('Đặt đơn sẽ được mở ở R4', { exact: false })).toBeVisible()
-  await expect(page.locator('form')).toHaveCount(0)
+  await page.getByLabel('Tên người nhận').fill('Khách thử nghiệm')
+  await page.getByLabel('Số điện thoại').fill('0900000000')
+  const submit = page.getByRole('button', { name: 'Đặt đơn', exact: true })
+  await expect(submit).toBeEnabled({ timeout: 15_000 })
+  await submit.click()
+
+  await expect(page).toHaveURL(/\/s\/mochi-cafe\/order\/A\d+$/, { timeout: 20_000 })
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Đã nhận đơn')
+  expect(await page.evaluate(() => window.location.hash)).toBe('')
+  const trackingKeys = await page.evaluate(() => Object.keys(sessionStorage)
+    .filter(key => key.startsWith('zeno-order:tracking:v1:mochi-cafe:')))
+  expect(trackingKeys).toHaveLength(1)
+  expect(await page.evaluate(key => sessionStorage.getItem(key)?.length, trackingKeys[0]!)).toBe(43)
+
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Đã nhận đơn')
 })
 
 test('returns the same safe 404 for an unknown store', async ({ page, request }) => {

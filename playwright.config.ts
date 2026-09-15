@@ -21,6 +21,15 @@ export default defineConfig({
     command: 'npm run dev -- --host 127.0.0.1',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
+    env: {
+      ...process.env,
+      NUXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY ?? '1x00000000000000000000AA',
+      NUXT_TURNSTILE_SECRET_KEY: process.env.NUXT_TURNSTILE_SECRET_KEY ?? '1x0000000000000000000000000000000AA',
+      NUXT_ORDER_RATE_LIMIT_MAX: process.env.NUXT_ORDER_RATE_LIMIT_MAX ?? '1000',
+      NUXT_TRACKING_KEY_VERSION: process.env.NUXT_TRACKING_KEY_VERSION ?? '1',
+      NUXT_TRACKING_SECRETS_JSON: process.env.NUXT_TRACKING_SECRETS_JSON
+        ?? '{"1":"local-playwright-tracking-secret-32-bytes-minimum"}',
+    },
     stdout: 'ignore',
     stderr: 'pipe',
   },
