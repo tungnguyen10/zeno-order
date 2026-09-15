@@ -9,6 +9,17 @@ export default defineNuxtConfig({
     supabase: {
       secretKey: '',
     },
+    turnstile: {
+      secretKey: '',
+    },
+    order: {
+      rateLimitMax: 8,
+      rateLimitWindowSeconds: 60,
+    },
+    tracking: {
+      keyVersion: 1,
+      secretsJson: '',
+    },
     public: {
       appUrl: 'http://127.0.0.1:3000',
     },
