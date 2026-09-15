@@ -19,7 +19,7 @@ schema_paths = []
 
 [db.seed]
 enabled = true
-sql_paths = ["./seed.sql"]
+sql_paths = ["./seed-demo.sql", "./seed.sql"]
 
 [realtime]
 enabled = true
@@ -43,4 +43,3 @@ minimum_password_length = 8
 [auth.email]
 enable_signup = true
 enable_confirmations = false
-
