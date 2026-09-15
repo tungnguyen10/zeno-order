@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PublicStoreSummary } from '../../../../shared/types/storefront'
+import type { CheckoutDraft, CreateOrderResponse } from '../../../../shared/types/order'
 import { calculateLineTotal } from '../../../domain/cart'
+import { createCheckoutAttemptManager } from '../../../domain/checkout-attempt'
 
 const route = useRoute()
 const publicSlug = String(route.params.publicSlug)
@@ -21,10 +23,53 @@ if (pageError || !store) {
 const currency = store.currency
 const cart = useCartStore()
 const items = computed(() => cart.cartFor(publicSlug)?.items ?? [])
+const runtimeConfig = useRuntimeConfig()
+const pending = shallowRef(false)
+const submitError = shallowRef('')
+const attempt = createCheckoutAttemptManager()
 
 onMounted(() => {
   cart.hydrate(publicSlug, currency)
 })
+
+async function submitOrder(draft: CheckoutDraft) {
+  if (pending.value || items.value.length === 0) return
+  const orderItems = items.value.map(item => ({
+    productId: item.productId,
+    quantity: item.quantity,
+    optionValueIds: item.options.map(option => option.optionValueId),
+    note: item.note,
+  }))
+  const businessPayload = {
+    publicSlug,
+    fulfillmentType: draft.fulfillmentType,
+    customer: draft.customer,
+    delivery: draft.delivery,
+    customerNote: draft.customerNote,
+    paymentMethod: draft.paymentMethod,
+    items: orderItems,
+  }
+  const idempotencyKey = attempt.keyFor(JSON.stringify(businessPayload))
+
+  pending.value = true
+  submitError.value = ''
+  try {
+    const response = await $fetch<CreateOrderResponse>('/api/orders', {
+      method: 'POST',
+      body: { ...businessPayload, idempotencyKey, turnstileToken: draft.turnstileToken },
+    })
+    cart.clear(publicSlug)
+    attempt.reset()
+    await navigateTo(response.trackingPath)
+  }
+  catch (error) {
+    const payload = (error as { data?: { error?: { message?: string } } }).data
+    submitError.value = payload?.error?.message ?? 'Không thể đặt đơn. Vui lòng thử lại.'
+  }
+  finally {
+    pending.value = false
+  }
+}
 
 useSeoMeta({
   title: `Thanh toán | ${store.name}`,
@@ -88,13 +133,15 @@ useSeoMeta({
           </div>
         </section>
 
-        <section class="mt-6 rounded-[var(--radius-card)] border border-[rgb(var(--brand))]/20 bg-[rgb(var(--brand-soft))] p-5">
-          <h2 class="font-black text-[rgb(var(--brand))]">
-            Checkout đang được hoàn thiện
-          </h2>
-          <p class="mt-2 text-sm leading-6 text-[rgb(var(--muted))]">
-            Đặt đơn sẽ được mở ở R4 sau khi có xác minh chống bot, tính giá phía máy chủ và idempotency.
-          </p>
+        <p v-if="submitError" role="alert" class="mt-5 rounded-2xl bg-[rgb(var(--danger-soft))] p-4 font-semibold text-[rgb(var(--danger))]">
+          {{ submitError }}
+        </p>
+        <section class="mt-6">
+          <CheckoutForm
+            :pending="pending"
+            :site-key="runtimeConfig.public.turnstileSiteKey"
+            @submit="submitOrder"
+          />
         </section>
       </template>
     </div>

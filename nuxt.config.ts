@@ -22,6 +22,7 @@ export default defineNuxtConfig({
     },
     public: {
       appUrl: 'http://127.0.0.1:3000',
+      turnstileSiteKey: '',
     },
   },
   supabase: {
