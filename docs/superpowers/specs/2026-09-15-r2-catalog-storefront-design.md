@@ -68,7 +68,7 @@ interface StorefrontCatalog {
     name: string
     slug: string
     description: string | null
-    basePrice: number
+    basePrice: string
     imagePath: string | null
   }>
   optionGroups: Array<{
@@ -81,7 +81,7 @@ interface StorefrontCatalog {
     values: Array<{
       id: string
       name: string
-      priceAdjustment: number
+      priceAdjustment: string
       isDefault: boolean
     }>
   }>
@@ -94,13 +94,43 @@ interface StorefrontCatalog {
 
 Arrays are already ordered by `sort_order`, then stable identifiers. Only published, active stores and active menus/products/groups/values are returned. Live open/closed and sold-out fields are deliberately absent.
 
-Successful and not-found responses use:
+The catalog RPC returns the following exact snake-case JSON before Nitro maps it to the DTO above:
+
+```ts
+interface CatalogRpcPayload {
+  store: {
+    public_slug: string
+    name: string
+    description: string | null
+    logo_path: string | null
+    cover_path: string | null
+    timezone: string
+    currency: string
+  }
+  menus: Array<{ id: string, name: string }>
+  sections: Array<{ id: string, menu_id: string, name: string, slug: string, description: string | null }>
+  menu_items: Array<{ id: string, menu_id: string, section_id: string, product_id: string }>
+  products: Array<{ id: string, name: string, slug: string, description: string | null, base_price: string, image_path: string | null }>
+  option_groups: Array<{
+    id: string
+    name: string
+    selection_type: 'single' | 'multiple'
+    required: boolean
+    min_select: number
+    max_select: number
+    values: Array<{ id: string, name: string, price_adjustment: string, is_default: boolean }>
+  }>
+  product_option_groups: Array<{ product_id: string, option_group_id: string }>
+}
+```
+
+Successful and intentional not-found responses use:
 
 ```http
 Cache-Control: public, max-age=0, s-maxage=120, stale-while-revalidate=60
 ```
 
-Missing, inactive and unpublished stores return the existing safe `404 STORE_NOT_FOUND` envelope. Database failures become a generic 500 without raw SQL details.
+Missing, inactive and unpublished stores return the existing safe `404 STORE_NOT_FOUND` envelope. Database failures become a generic 500 without raw SQL details and use `Cache-Control: no-store`; they are never publicly cached.
 
 The existing profile endpoint remains backward compatible and receives the same catalog cache policy. The SSR storefront switches to the catalog endpoint so store profile has one rendering source.
 
@@ -139,21 +169,81 @@ Visibility still requires an active, published store. For a visible store, statu
 4. Otherwise resolve the current local time against `store_hours` in the store timezone.
 5. Missing or closed-day hours → `closed`.
 
-Phase 1 hours support multiple same-day intervals. Overnight intervals are rejected by database constraints. `nextOpeningAt` scans the next seven local calendar days and returns an ISO timestamp when a future interval exists.
+Phase 1 stores at most one row per store/day. Overnight intervals are rejected by database constraints. Open intervals use `[open_time, close_time)`, so the exact closing instant is closed. When schedule-controlled and currently closed, `nextOpeningAt` scans today plus the next six local calendar days for the first future opening and returns an RFC 3339 instant. Manual overrides are indefinite and therefore return `nextOpeningAt = null`. If an opening lands in a daylight-saving gap or a timezone offset changes before that opening, R2 returns `null` rather than guessing; an overlap uses the earlier matching instant. Invalid IANA timezones are rejected by a database trigger, and a defensive runtime failure maps to a safe no-store 500.
 
 `orderingEnabled` is true only when status is `open` and at least one fulfillment method is enabled. Product availability is independent of store status and equals `!is_sold_out` for public active products; the UI combines both flags when enabling actions.
 
+The availability RPC returns the exact source payload below. Time strings use PostgreSQL `HH:mm:ss` format and collections are ordered by day/time or product ID.
+
+```ts
+interface AvailabilityRpcPayload {
+  public_slug: string
+  timezone: string
+  manual_open_state: 'open' | 'closed' | 'temporarily_closed' | null
+  delivery_enabled: boolean
+  pickup_enabled: boolean
+  hours: Array<{
+    day_of_week: number
+    open_time: string | null
+    close_time: string | null
+    is_closed: boolean
+  }>
+  products: Array<{ product_id: string, is_sold_out: boolean }>
+}
+```
+
+Only currently active products appear in the fresh availability payload. If a product present in a cached catalog is missing from availability, the UI treats it as unavailable. This fail-closed rule covers products deactivated or deleted during the catalog cache window.
+
 ### Database rules
 
-- Money uses non-negative `bigint`; R2 does not allow negative option adjustments.
+The table contract is exact:
+
+```text
+store_hours(id uuid PK, store_id uuid NOT NULL, day_of_week smallint NOT NULL,
+  open_time time NULL, close_time time NULL, is_closed boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now())
+menus(id uuid PK, store_id uuid NOT NULL, name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true, sort_order integer NOT NULL DEFAULT 0,
+  created_at/updated_at timestamptz NOT NULL DEFAULT now())
+menu_sections(id uuid PK, store_id/menu_id uuid NOT NULL, name/slug text NOT NULL,
+  description text NULL, sort_order integer NOT NULL DEFAULT 0,
+  created_at/updated_at timestamptz NOT NULL DEFAULT now())
+products(id uuid PK, store_id uuid NOT NULL, name/slug text NOT NULL,
+  description/image_path text NULL, base_price bigint NOT NULL,
+  is_active boolean NOT NULL DEFAULT true, is_sold_out boolean NOT NULL DEFAULT false,
+  created_at/updated_at timestamptz NOT NULL DEFAULT now())
+menu_items(id uuid PK, store_id/menu_id/section_id/product_id uuid NOT NULL,
+  sort_order integer NOT NULL DEFAULT 0, created_at/updated_at timestamptz NOT NULL DEFAULT now())
+option_groups(id uuid PK, store_id uuid NOT NULL, name text NOT NULL,
+  selection_type text NOT NULL, required boolean NOT NULL DEFAULT false,
+  min_select integer NOT NULL DEFAULT 0, max_select integer NOT NULL DEFAULT 1,
+  sort_order integer NOT NULL DEFAULT 0, is_active boolean NOT NULL DEFAULT true,
+  created_at/updated_at timestamptz NOT NULL DEFAULT now())
+option_values(id uuid PK, store_id/option_group_id uuid NOT NULL, name text NOT NULL,
+  price_adjustment bigint NOT NULL DEFAULT 0, is_default boolean NOT NULL DEFAULT false,
+  is_active boolean NOT NULL DEFAULT true, sort_order integer NOT NULL DEFAULT 0,
+  created_at/updated_at timestamptz NOT NULL DEFAULT now())
+product_option_groups(store_id/product_id/option_group_id uuid NOT NULL,
+  sort_order integer NOT NULL DEFAULT 0, created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(store_id, product_id, option_group_id))
+```
+
+Every FK to `stores` cascades on store deletion. Menu deletion cascades its sections and placements; section/product deletion cascades placements; option-group deletion cascades values and product links; product deletion cascades product-option links. Historical order rows introduced in R4 will store snapshots rather than cascade catalog history.
+
+Catalog RPCs return SQL `NULL` for missing/inactive/unpublished stores. For visible stores, all collection keys are present and use empty arrays rather than JSON null. Option groups and product-option links are included only when linked to an active product placed in an active menu/section; values must also be active.
+
+- Money uses non-negative `bigint` in PostgreSQL and decimal integer strings in public JSON; R2 does not allow negative option adjustments or unsafe JavaScript number conversion.
 - `day_of_week` is `0` Sunday through `6` Saturday.
-- Open intervals require non-null `open_time < close_time`; closed-day records have null times.
+- `UNIQUE(store_id, day_of_week)` permits one hours row per day. Open rows require non-null `open_time < close_time`; closed-day rows have null times, so contradictory/overlapping day records are impossible.
 - Slugs are lowercase kebab-case and unique within the store for products, and within a menu for sections.
+- Names contain 1–120 characters, slug length is 1–63, and every `sort_order` is non-negative.
 - `selection_type` is `single` or `multiple`; `min_select >= 0`, `max_select >= min_select`, single groups have `max_select = 1`, and `required` is equivalent to `min_select > 0`.
-- A single-select group has at most one active default value.
+- Every option group has at most one active default value in Phase 1.
+- `menu_sections` has `UNIQUE(store_id, menu_id, id)` so `menu_items(store_id, menu_id, section_id)` can reference it directly.
+- A product can appear only once in a section, and an option group can link only once to a product.
 - All new public-schema tables have RLS enabled.
 - Authenticated reads use `private.has_store_role`; no R2 mutation policy is introduced.
-- Anon has no direct table privileges and can only execute the two allow-listed public RPCs.
+- The expected anon-executable app functions are the retained R1 profile resolver plus the two R2 RPCs. `PUBLIC` itself has no execute privilege and no other app function is exposed.
 - Public RPCs are `SECURITY DEFINER`, use `search_path = ''`, fully qualify objects and return only the approved payload.
 
 ### UI behavior
@@ -161,6 +251,7 @@ Phase 1 hours support multiple same-day intervals. Overnight intervals are rejec
 - `/s/:publicSlug` SSR-fetches catalog and availability with slug-specific keys so hydration does not duplicate requests.
 - The menu remains readable when closed or sold out.
 - Status text and product disabled state come only from availability data.
+- A catalog product is actionable only when its availability row exists with `isAvailable === true`; missing availability rows are disabled.
 - The baseline viewport is 360–430 px; desktop progressively widens the content grid.
 - Section navigation uses anchors and product cards show name, description, integer-money formatting and an explicit sold-out badge.
 - Empty catalog and safe 404/500 states are localized and accessible.
@@ -175,6 +266,8 @@ Phase 1 hours support multiple same-day intervals. Overnight intervals are rejec
 5. Contract/E2E verification closes the slice.
 
 No two implementers may edit the same migration, shared DTO or storefront page concurrently.
+
+Local and remote demo data are separated: `supabase/seed-demo.sql` contains no auth user or password and may be applied to the linked development project; `supabase/seed.sql` contains only local auth/membership fixtures and runs after the demo seed during local reset.
 
 ## Acceptance gates
 

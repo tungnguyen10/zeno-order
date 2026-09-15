@@ -18,6 +18,7 @@
 - Catalog excludes live availability and uses `Cache-Control: public, max-age=0, s-maxage=120, stale-while-revalidate=60`.
 - Availability uses `Cache-Control: no-store` on success and error responses.
 - Product and option UUIDs are opaque public selection identifiers, not authorization.
+- PostgreSQL `bigint` money is serialized as decimal integer strings; application code never coerces it to JavaScript `number`.
 - R2 excludes product configuration, option selection, cart, checkout, tracking and merchant mutations.
 - Every behavior change follows red-green-refactor and preserves all R1 tests.
 
@@ -27,16 +28,18 @@
 
 **Files:**
 
-- Create: `supabase/migrations/20260915034919_r2_catalog_foundation.sql`
+- Create: `supabase/migrations/20260915040126_r2_catalog_foundation.sql`
 - Create: `supabase/tests/r2_catalog_foundation.test.sql`
 - Create: `supabase/tests/r2_catalog_rls.test.sql`
+- Create: `supabase/seed-demo.sql`
 - Modify: `supabase/seed.sql`
+- Modify: `supabase/config.toml`
 
 **Interfaces:**
 
 - Produces RPC `public.get_storefront_catalog_by_slug(p_public_slug text) returns jsonb`.
 - Produces RPC `public.get_storefront_availability_by_slug(p_public_slug text) returns jsonb`.
-- Catalog JSON keys use snake_case equivalents of the approved DTO; availability source JSON contains store timezone/manual state/fulfillment flags, ordered hours and active product sold-out rows.
+- Catalog and availability JSON use the exact `CatalogRpcPayload` and `AvailabilityRpcPayload` snake-case interfaces in the approved design.
 
 - [ ] **Step 1: Write failing pgTAP schema and tenant-integrity tests**
 
@@ -67,11 +70,11 @@ organization owner/admin → all catalog rows for organization stores
 direct store member       → assigned-store catalog rows only
 outsider                  → zero catalog rows
 anon direct SELECT        → SQLSTATE 42501 for every new table
-anon RPC execution        → allowed for only catalog and availability
+anon RPC execution        → retained profile resolver plus the two R2 RPCs only
 anon mutation             → SQLSTATE 42501
 ```
 
-Pair every denied mutation with an assertion that the target row remained unchanged.
+Assert full function signatures with `has_function_privilege`, prove `PUBLIC` itself has no execute privilege, and pair every denied mutation with an assertion that the target row remained unchanged.
 
 - [ ] **Step 3: Run both tests and verify RED**
 
@@ -86,7 +89,7 @@ Expected: both fail because R2 tables/functions do not exist.
 
 - [ ] **Step 4: Implement the migration**
 
-Create the eight tables:
+Create the eight tables with the exact columns/defaults/nullability defined in the approved design:
 
 ```text
 store_hours
@@ -113,11 +116,33 @@ product_option_groups(store_id, option_group_id)  → option_groups(store_id, id
 
 Add indexes matching the public traversal and RLS predicates. Apply `private.set_updated_at()` to mutable catalog tables. Enable RLS on every table, grant authenticated read only, and use `private.has_store_role(store_id, array['owner','manager','staff'])` for select policies.
 
+In addition to `UNIQUE(store_id, id)` on composite parents, add `UNIQUE(store_id, menu_id, id)` to `menu_sections`. Enforce at most one active default option value per group with a partial unique index on `(store_id, option_group_id) WHERE is_active AND is_default`; no denormalized selection type or synchronization trigger is needed. Order every RPC aggregate by `sort_order` followed by its UUID.
+
+Add explicit DDL and negative pgTAP cases for:
+
+```text
+name length 1..120; slug lowercase kebab-case length 1..63
+sort_order >= 0 on every ordered table/association
+UNIQUE(store_id, day_of_week) and day_of_week 0..6
+closed hour row has both times NULL; open row has open_time < close_time
+base_price >= 0 and price_adjustment >= 0
+selection_type in single|multiple
+required = (min_select > 0), min_select >= 0, max_select >= min_select
+single group max_select = 1
+one active default value per option group
+unique product placement per store/menu/section/product
+unique option-group link per store/product/group
+menu item rejected when the section belongs to another menu in the same store
+all composite cross-store relations rejected
+```
+
+Add a private trigger on `stores.timezone` that accepts only exact names from `pg_timezone_names`; verify current rows before enabling it and test that an invalid timezone write is rejected.
+
 Both public RPCs must be `stable`, `security definer`, `set search_path = ''`, fully qualified and explicitly revoked from `public` before granting execute to `anon, authenticated`. Revoke all direct R2 table privileges from `anon`.
 
 - [ ] **Step 5: Add representative local seed data**
 
-Extend `mochi-cafe` with:
+Create `supabase/seed-demo.sql` with the safe organization/store upserts currently in `seed.sql`, then extend `mochi-cafe` with:
 
 ```text
 Menu: Thực đơn chính
@@ -130,24 +155,44 @@ Hours: 07:00–22:00 for every day
 
 Use fixed local-only UUIDs and no real credentials.
 
-- [ ] **Step 6: Push migration, run tests and verify GREEN**
+Keep only the local auth user and membership fixtures in `supabase/seed.sql`. Configure local reset order as:
 
-Run sequentially:
+```toml
+[db.seed]
+enabled = true
+sql_paths = ["./seed-demo.sql", "./seed.sql"]
+```
+
+Apply `seed-demo.sql` to the linked development project after the migration; never apply the local auth/password seed remotely.
+
+- [ ] **Step 6: Verify locally, deploy to the development project and verify GREEN**
+
+Create the migration path with the pinned CLI command `npx supabase migration new r2_catalog_foundation`; update the task brief/report with the emitted exact path and use that path in the commit. The normal gate is local-first:
+
+```bash
+npx supabase db reset
+npm run test:db
+npx supabase db lint --local --level warning --fail-on error
+npx supabase db advisors --local --type all --level warn --fail-on error --agent no
+```
+
+This machine currently has no Docker/Podman. Record that environment fact in the task report, preserve the local commands in CI, and use the already linked non-production Supabase development project as the explicitly authorized fallback. Verify every pinned CLI flag with `--help`, then run sequentially:
 
 ```bash
 npx supabase db push --linked --dry-run --skip-vault --agent no
 npx supabase db push --linked --skip-vault --yes --agent no
+npx supabase db query --linked --file supabase/seed-demo.sql --agent no
 npx supabase db query --linked --file supabase/tests/r2_catalog_foundation.test.sql --agent no
 npx supabase db query --linked --file supabase/tests/r2_catalog_rls.test.sql --agent no
 npx supabase db advisors --linked --type all --level warn --fail-on error --agent no
 ```
 
-Expected: both pgTAP suites pass; advisors return no error. Warnings for the two intentionally public limited RPCs are documented, not hidden.
+Expected: both pgTAP suites pass; advisors return no error. Warnings for the retained R1 resolver and two intentionally public R2 functions are documented, not hidden. Local reset/test remains a CI gate until Docker is installed on this machine.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add supabase/migrations/20260915034919_r2_catalog_foundation.sql supabase/tests/r2_catalog_foundation.test.sql supabase/tests/r2_catalog_rls.test.sql supabase/seed.sql
+git add supabase/migrations/20260915040126_r2_catalog_foundation.sql supabase/tests/r2_catalog_foundation.test.sql supabase/tests/r2_catalog_rls.test.sql supabase/seed-demo.sql supabase/seed.sql supabase/config.toml
 git commit -m "feat: add tenant-safe catalog schema"
 ```
 
@@ -174,7 +219,7 @@ git commit -m "feat: add tenant-safe catalog schema"
 
 - [ ] **Step 1: Write unit tests for validation and mapping**
 
-Test valid slug mapping, invalid/reserved slug rejection as `StoreNotFoundError`, empty RPC result as 404, database errors propagating to the API layer, nested option-value mapping and preservation of deterministic array order.
+Test valid slug mapping, invalid/reserved slug rejection as `StoreNotFoundError`, empty RPC result as 404, database errors propagating to the API layer, decimal money strings, nested option-value mapping and preservation of deterministic array order.
 
 - [ ] **Step 2: Run unit tests and verify RED**
 
@@ -190,13 +235,13 @@ Define `StorefrontCatalog` with the exact field names and nullability in the R2 
 
 - [ ] **Step 4: Write Nuxt route tests**
 
-Assert the success DTO, safe 404, generic 500, and exact header:
+Assert success and intentional safe 404 use the exact header:
 
 ```text
 public, max-age=0, s-maxage=120, stale-while-revalidate=60
 ```
 
-Assert the response has no `storeId`, `organizationId`, `isSoldOut`, `manualOpenState`, `deliveryEnabled` or `pickupEnabled` key.
+Assert generic 500 uses `Cache-Control: no-store`. Assert the public payload has no `storeId`, `organizationId`, `isSoldOut`, `manualOpenState`, `deliveryEnabled` or `pickupEnabled` key.
 
 - [ ] **Step 5: Run route tests and verify RED**
 
@@ -208,7 +253,7 @@ Expected: fail because the catalog route does not exist.
 
 - [ ] **Step 6: Implement the catalog route and profile cache policy**
 
-Use the sessionless public Supabase client, typed repository and service. Set the cache header before success/error mapping. Preserve the existing safe error envelope. Add the same cache header to the backward-compatible profile endpoint.
+Use the sessionless public Supabase client, typed repository and service. Set the shared-cache header only after success or an intentional `StoreNotFoundError`; set `no-store` before returning a generic 500. Preserve the existing safe error envelope. Apply the same per-status policy and tests to the backward-compatible profile endpoint.
 
 - [ ] **Step 7: Verify GREEN and commit**
 
@@ -241,7 +286,7 @@ git commit -m "feat: expose cached storefront catalog"
 
 - [ ] **Step 1: Write pure resolver tests**
 
-Cover manual `open`, `closed`, `temporarily_closed`, currently open hours, closed day, before-opening `nextOpeningAt`, multiple same-day intervals, timezone boundary, no hours, disabled fulfillment, sold-out and available products. Pass a fixed `Date` into every test.
+Cover manual `open`, `closed`, `temporarily_closed`, `[open, close)` boundaries, closed day, later-today opening, the seven-local-day horizon, disabled fulfillment, sold-out/available/missing product behavior, invalid timezone, a daylight-saving zone and a DST gap/overlap. Manual overrides return no next opening. A DST-gap opening or timezone-offset change before the next opening returns null; an overlap chooses the earlier matching instant. Pass a fixed `Date` into every test.
 
 - [ ] **Step 2: Run resolver tests and verify RED**
 
@@ -253,7 +298,7 @@ Expected: fail because the resolver does not exist.
 
 - [ ] **Step 3: Implement the pure resolver**
 
-Use `Intl.DateTimeFormat(...).formatToParts()` for the store timezone; do not change process timezone. Apply the precedence and seven-day next-opening scan from the design. Return ISO timestamps and never read the system clock inside the pure function.
+Use `Intl.DateTimeFormat(...).formatToParts()` for the store timezone; do not change process timezone. Apply the exact boundary, horizon and DST rules from the design. Return RFC 3339 instants and never read the system clock inside the pure function. Throw a typed invalid-timezone error so the API maps impossible legacy data to a safe no-store 500.
 
 - [ ] **Step 4: Write repository and route tests**
 
@@ -305,7 +350,7 @@ git commit -m "feat: add fresh storefront availability"
 
 - [ ] **Step 1: Write failing money formatter and page tests**
 
-Assert `35000` VND renders as `35.000 ₫`, ordered sections/products appear in SSR output, availability status is localized, sold-out product remains visible with a badge, empty sections are omitted, and both `useFetch` calls use slug-specific keys.
+Assert decimal money string `"35000"` in VND renders as `35.000 ₫`, ordered sections/products appear in SSR output, availability status is localized, sold-out and missing-availability products remain visible with a disabled badge, empty sections are omitted, and both `useFetch` calls use slug-specific keys.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -318,7 +363,7 @@ Expected: fail because formatter/components/catalog rendering do not exist.
 
 - [ ] **Step 3: Implement components and page composition**
 
-Fetch catalog with key `storefront-catalog:${publicSlug}` and availability with key `storefront-availability:${publicSlug}`. Keep both awaited during SSR. Build section product lists from normalized `menuItems` without mutating DTO arrays. Use semantic headings, anchor navigation, `aria-live="polite"` for status and visible text for sold-out state.
+Fetch catalog with key `storefront-catalog:${publicSlug}` and availability with key `storefront-availability:${publicSlug}`. Keep both awaited during SSR. Build section product lists from normalized `menuItems` without mutating DTO arrays. A product is available only when its fresh row exists and is exactly true; a missing row is fail-closed. Use semantic headings, anchor navigation, `aria-live="polite"` for status and visible text for sold-out state.
 
 - [ ] **Step 4: Apply mobile-first styling**
 
@@ -342,7 +387,6 @@ git commit -m "feat: render mobile storefront catalog"
 - Modify: `test/e2e/storefront.spec.ts`
 - Modify: `.github/workflows/ci.yml`
 - Modify: `README.md`
-- Create: `.superpowers/sdd/progress.md` (ignored local execution ledger)
 
 **Interfaces:**
 
@@ -350,7 +394,7 @@ git commit -m "feat: render mobile storefront catalog"
 
 - [ ] **Step 1: Extend Playwright tests**
 
-Add mobile Chromium coverage for seeded section/product SSR, deterministic order, sold-out visibility, section anchors, safe unknown-store 404, catalog cache header, availability no-store header and absence of store/organization UUIDs or private operational fields.
+Add mobile Chromium coverage for seeded section/product SSR, deterministic order, sold-out visibility, active-to-inactive fail-closed behavior under stale catalog, section anchors, safe unknown-store 404, catalog cache header, availability no-store header and absence of store/organization UUIDs or private operational fields. Add negative assertions that R2 renders no product dialog/sheet, option controls, add-to-cart action, cart persistence/CTA, checkout link or tracking request.
 
 - [ ] **Step 2: Run E2E and fix only contract regressions**
 
