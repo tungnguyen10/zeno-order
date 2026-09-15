@@ -17,7 +17,7 @@ values (
   'authenticated',
   'authenticated',
   'merchant@local.test',
-  crypt('local-only-password', gen_salt('bf')),
+  extensions.crypt('local-only-password', extensions.gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}',
   '{}',

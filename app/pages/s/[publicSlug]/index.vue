@@ -8,29 +8,35 @@ const { data: store, error } = await useFetch<PublicStoreSummary>(
   { key: `public-store:${publicSlug}` },
 )
 
-if (error.value || !store.value) {
-  throw createError({
-    statusCode: 404,
-    statusMessage: 'Không tìm thấy cửa hàng.',
+const storefront = store.value
+const pageError = getStorefrontPageError(error.value, Boolean(storefront))
+
+if (pageError || !storefront) {
+  throw createError(pageError ?? {
+    statusCode: 500,
+    statusMessage: 'Không thể tải thông tin cửa hàng.',
   })
 }
 
 useSeoMeta({
-  title: `${store.value.name} | Đặt món online`,
-  description: store.value.description ?? `Đặt món trực tuyến tại ${store.value.name}.`,
+  title: `${storefront.name} | Đặt món online`,
+  description: storefront.description ?? `Đặt món trực tuyến tại ${storefront.name}.`,
 })
 </script>
 
 <template>
   <main class="min-h-screen bg-[rgb(var(--background))] px-4 py-8 sm:px-6">
-    <section class="mx-auto max-w-xl overflow-hidden rounded-[var(--radius-card)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-card)]">
+    <section
+      v-if="storefront"
+      class="mx-auto max-w-xl overflow-hidden rounded-[var(--radius-card)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-card)]"
+    >
       <div class="h-2 bg-[rgb(var(--brand))]" />
 
       <header class="space-y-4 px-5 py-6 sm:px-8">
         <img
-          v-if="store.logoPath"
-          :src="store.logoPath"
-          :alt="`Logo ${store.name}`"
+          v-if="storefront.logoPath"
+          :src="storefront.logoPath"
+          :alt="`Logo ${storefront.name}`"
           class="size-16 rounded-2xl object-cover"
         >
 
@@ -39,13 +45,13 @@ useSeoMeta({
             Đặt món trực tuyến
           </p>
           <h1 class="text-3xl font-bold tracking-tight">
-            {{ store.name }}
+            {{ storefront.name }}
           </h1>
           <p
-            v-if="store.description"
+            v-if="storefront.description"
             class="leading-7 text-[rgb(var(--muted))]"
           >
-            {{ store.description }}
+            {{ storefront.description }}
           </p>
         </div>
       </header>
@@ -61,4 +67,3 @@ useSeoMeta({
     </section>
   </main>
 </template>
-

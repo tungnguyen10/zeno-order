@@ -40,6 +40,7 @@ $$;
 
 revoke all on function private.is_organization_admin(uuid) from public;
 revoke all on function private.has_store_role(uuid, text[]) from public;
+grant usage on schema private to authenticated;
 grant execute on function private.is_organization_admin(uuid) to authenticated;
 grant execute on function private.has_store_role(uuid, text[]) to authenticated;
 
@@ -113,4 +114,3 @@ $$;
 
 revoke all on function public.get_public_store_by_slug(text) from public;
 grant execute on function public.get_public_store_by_slug(text) to anon, authenticated;
-

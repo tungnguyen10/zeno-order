@@ -35,4 +35,18 @@ describe('storefront store shell', () => {
       key: 'public-store:mochi-cafe',
     }, expect.any(String))
   })
+
+  it('preserves an upstream server failure as a 500', async () => {
+    useFetchMock.mockResolvedValue({
+      data: ref(null),
+      error: ref({ statusCode: 500 }),
+    })
+
+    await expect(mountSuspended(StorefrontPage, {
+      route: '/s/mochi-cafe',
+    })).rejects.toMatchObject({
+      statusCode: 500,
+      statusMessage: 'Không thể tải thông tin cửa hàng.',
+    })
+  })
 })

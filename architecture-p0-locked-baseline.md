@@ -44,7 +44,7 @@ Không dùng `organization_slug/store_slug` làm định danh bắt buộc cho s
 - Bookmark.
 - Marketing material.
 
-Không cho phép đổi `public_slug` sau khi `published_at` đã được thiết lập.
+`published_at` là mốc publish đầu tiên: sau khi đã thiết lập thì không được xóa, và `public_slug` không được thay đổi.
 
 ## Custom domain
 

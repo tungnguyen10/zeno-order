@@ -6,7 +6,9 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/eslint', '@pinia/nuxt', '@nuxtjs/supabase'],
   runtimeConfig: {
-    supabaseServiceRoleKey: '',
+    supabase: {
+      secretKey: '',
+    },
     public: {
       appUrl: 'http://127.0.0.1:3000',
     },

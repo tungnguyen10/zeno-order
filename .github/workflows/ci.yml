@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-r1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NUXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      NUXT_SUPABASE_SECRET_KEY: sb_secret_ci_bundle_guard_not_a_real_credential
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and Nuxt tests
+        run: npm test
+
+      - name: Start local Supabase
+        run: npx supabase start
+
+      - name: Reset and seed database
+        run: npx supabase db reset
+
+      - name: Lint database
+        run: npx supabase db lint --fail-on error
+
+      - name: Run database advisors
+        run: npx supabase db advisors --local --type all --fail-on error
+
+      - name: Run pgTAP tests
+        run: npm run test:db
+
+      - name: Export local public Supabase configuration
+        shell: bash
+        run: |
+          eval "$(npx supabase status -o env)"
+          public_key="${PUBLISHABLE_KEY:-${ANON_KEY:-}}"
+          test -n "${API_URL:-}"
+          test -n "$public_key"
+          echo "NUXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "NUXT_PUBLIC_SUPABASE_KEY=$public_key" >> "$GITHUB_ENV"
+
+      - name: Production build
+        run: npm run build
+
+      - name: Verify client bundle has no server secret
+        run: npm run test:client-secrets
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Storefront smoke tests
+        run: npm run test:e2e
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop

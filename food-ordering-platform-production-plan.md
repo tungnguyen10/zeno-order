@@ -577,7 +577,7 @@ Constraints:
 unique(public_slug)
 public_slug = lowercase kebab-case
 public_slug not in reserved-word list
-public_slug immutable after published_at is set
+published_at is a durable first-publication marker and cannot be cleared; public_slug is immutable after it is set
 ```
 
 ---
@@ -2838,7 +2838,7 @@ Scope:
 9. Implement organizations/stores/store_members.
 10. Implement initial RLS helpers.
 11. Create one seeded organization/store.
-12. Create basic `/{store}` route that resolves the seeded store.
+12. Create basic `/s/{public_slug}` route that resolves the seeded store.
 13. Add lint + typecheck scripts.
 14. Add README setup instructions.
 
@@ -2862,7 +2862,7 @@ seed
 The page:
 
 ```text
-/{seeded-store-slug}
+/s/{seeded-store-slug}
 ```
 
 must resolve the correct store without any hardcoded store ID in Vue components.

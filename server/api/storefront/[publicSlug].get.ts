@@ -1,11 +1,3 @@
-import { serverSupabaseClient } from '#supabase/server'
-import {
-  createError,
-  defineEventHandler,
-  getRouterParam,
-  setResponseStatus,
-} from 'h3'
-
 import {
   createPublicStoreService,
   StoreNotFoundError,
@@ -14,9 +6,14 @@ import {
   createStoreRepository,
   type PublicStoreRpcClient,
 } from '../../repositories/store.repository'
+import { createPublicSupabaseClient } from '../../utils/public-supabase-client'
 
 export default defineEventHandler(async (event) => {
-  const client = await serverSupabaseClient(event)
+  const config = useRuntimeConfig(event)
+  const client = createPublicSupabaseClient({
+    url: config.public.supabase.url,
+    key: config.public.supabase.key,
+  })
   const repository = createStoreRepository(client as unknown as PublicStoreRpcClient)
   const service = createPublicStoreService(repository)
 

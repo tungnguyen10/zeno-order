@@ -47,8 +47,7 @@ create table public.stores (
   ),
   constraint stores_public_slug_reserved check (
     public_slug not in ('_nuxt', 'admin', 'api', 'login', 'order', 's')
-  ),
-  unique (organization_id, id)
+  )
 );
 
 create table public.store_members (
@@ -87,6 +86,10 @@ security invoker
 set search_path = ''
 as $$
 begin
+  if old.published_at is not null and new.published_at is null then
+    raise exception 'published_at cannot be cleared after publication' using errcode = 'P0001';
+  end if;
+
   if old.published_at is not null and new.public_slug is distinct from old.public_slug then
     raise exception 'public_slug cannot change after publication' using errcode = 'P0001';
   end if;
@@ -103,7 +106,7 @@ before update on public.stores
 for each row execute function private.set_updated_at();
 
 create trigger stores_prevent_published_slug_change
-before update of public_slug on public.stores
+before update of public_slug, published_at on public.stores
 for each row execute function private.prevent_published_store_slug_change();
 
 revoke all on all tables in schema public from anon, authenticated;
@@ -115,3 +118,8 @@ alter default privileges for role postgres in schema public
 alter default privileges for role postgres in schema public
   revoke all on sequences from anon, authenticated;
 
+alter default privileges for role postgres in schema public
+  revoke execute on functions from public, anon, authenticated;
+
+alter default privileges for role postgres in schema private
+  revoke execute on functions from public, anon, authenticated;
