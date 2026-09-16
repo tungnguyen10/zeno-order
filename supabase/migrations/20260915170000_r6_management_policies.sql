@@ -144,6 +144,8 @@ stable
 as $$
 declare
   path_parts text[];
+  parsed_store_id uuid;
+  parsed_product_id uuid;
 begin
   path_parts := string_to_array(object_name, '/');
 
@@ -155,8 +157,16 @@ begin
     return null;
   end if;
 
-  perform path_parts[4]::uuid;
-  return path_parts[2]::uuid;
+  parsed_store_id := path_parts[2]::uuid;
+  parsed_product_id := path_parts[4]::uuid;
+
+  if path_parts[2] <> parsed_store_id::text
+    or path_parts[4] <> parsed_product_id::text
+  then
+    return null;
+  end if;
+
+  return parsed_store_id;
 exception when invalid_text_representation then
   return null;
 end;

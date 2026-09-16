@@ -17,7 +17,13 @@ insert into auth.users (id) values
   ('36000000-0000-0000-0000-000000000002'),
   ('36000000-0000-0000-0000-000000000003'),
   ('36000000-0000-0000-0000-000000000004'),
-  ('36000000-0000-0000-0000-000000000005');
+  ('36000000-0000-0000-0000-000000000005'),
+  ('36000000-0000-0000-0000-000000000006'),
+  ('36000000-0000-0000-0000-000000000007');
+
+insert into public.organization_members (organization_id, user_id, role) values
+  ('16000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000006', 'owner'),
+  ('16000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000007', 'admin');
 
 insert into public.store_members (store_id, user_id, role) values
   ('26000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000001', 'owner'),
@@ -39,7 +45,8 @@ insert into public.menu_sections (id, store_id, menu_id, name, slug) values
 
 insert into public.products (id, store_id, name, slug, base_price) values
   ('66000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-000000000001', 'Coffee A', 'coffee-a', 30000),
-  ('66000000-0000-0000-0000-000000000002', '26000000-0000-0000-0000-000000000002', 'Coffee B', 'coffee-b', 30000);
+  ('66000000-0000-0000-0000-000000000002', '26000000-0000-0000-0000-000000000002', 'Coffee B', 'coffee-b', 30000),
+  ('66000000-0000-0000-0000-000000000003', '26000000-0000-0000-0000-000000000001', 'Tea A', 'tea-a', 25000);
 
 insert into public.menu_items (id, store_id, menu_id, section_id, product_id) values
   ('67000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-000000000001', '56000000-0000-0000-0000-000000000001', '57000000-0000-0000-0000-000000000001', '66000000-0000-0000-0000-000000000001'),
@@ -47,7 +54,8 @@ insert into public.menu_items (id, store_id, menu_id, section_id, product_id) va
 
 insert into public.option_groups (id, store_id, name, selection_type) values
   ('68000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-000000000001', 'Options A', 'single'),
-  ('68000000-0000-0000-0000-000000000002', '26000000-0000-0000-0000-000000000002', 'Options B', 'single');
+  ('68000000-0000-0000-0000-000000000002', '26000000-0000-0000-0000-000000000002', 'Options B', 'single'),
+  ('68000000-0000-0000-0000-000000000003', '26000000-0000-0000-0000-000000000001', 'Extra options A', 'single');
 
 insert into public.option_values (id, store_id, option_group_id, name) values
   ('69000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000001', 'Value A'),
@@ -100,19 +108,43 @@ select results_eq(
 );
 select lives_ok($sql$
   do $owner$
+  declare
+    affected_rows integer;
   begin
     update public.stores set description = 'Owner updated' where id = '26000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner store update affected % rows', affected_rows; end if;
     update public.store_hours set close_time = '18:00' where id = '46000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner hours update affected % rows', affected_rows; end if;
     update public.menus set name = 'Owner menu' where id = '56000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner menu update affected % rows', affected_rows; end if;
     update public.menu_sections set name = 'Owner section' where id = '57000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner section update affected % rows', affected_rows; end if;
     update public.products set name = 'Owner coffee' where id = '66000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner product update affected % rows', affected_rows; end if;
     update public.menu_items set sort_order = 1 where id = '67000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner menu-item update affected % rows', affected_rows; end if;
     update public.option_groups set name = 'Owner options' where id = '68000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner option-group update affected % rows', affected_rows; end if;
     update public.option_values set name = 'Owner value' where id = '69000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner option-value update affected % rows', affected_rows; end if;
     update public.product_option_groups set sort_order = 1 where store_id = '26000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner option-assignment update affected % rows', affected_rows; end if;
     insert into public.store_members (store_id, user_id, role) values ('26000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000005', 'staff');
     update public.store_members set role = 'manager' where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000005';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner membership update affected % rows', affected_rows; end if;
     delete from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000005';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'owner membership delete affected % rows', affected_rows; end if;
   end
   $owner$;
 $sql$, 'owner manages settings, catalog, hours, and memberships');
@@ -120,6 +152,39 @@ select throws_ok(
   $$update public.stores set organization_id = '16000000-0000-0000-0000-000000000002' where id = '26000000-0000-0000-0000-000000000001'$$,
   '23514', 'STORE_ORGANIZATION_IMMUTABLE', 'owner cannot move a store between organizations'
 );
+reset role;
+
+-- Organization owner/admin inherit management rights for every store in their organization.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"36000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select results_eq(
+  $$select * from pg_temp.r6_visible_stores()$$,
+  $$select resource, array['26000000-0000-0000-0000-000000000001'::uuid] from (values
+    ('hours'), ('memberships'), ('menu items'), ('menus'), ('option assignments'),
+    ('option groups'), ('option values'), ('products'), ('sections'), ('stores')
+  ) expected(resource) order by resource$$,
+  'organization owner inherits tenant-scoped access to every managed resource'
+);
+select lives_ok($$update public.products set base_price = 31000 where id = '66000000-0000-0000-0000-000000000001'$$, 'organization owner updates store catalog');
+select is((select base_price from public.products where id = '66000000-0000-0000-0000-000000000001'), 31000::bigint, 'organization owner update persists');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"36000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+select results_eq(
+  $$select * from pg_temp.r6_visible_stores()$$,
+  $$select resource, array['26000000-0000-0000-0000-000000000001'::uuid] from (values
+    ('hours'), ('memberships'), ('menu items'), ('menus'), ('option assignments'),
+    ('option groups'), ('option values'), ('products'), ('sections'), ('stores')
+  ) expected(resource) order by resource$$,
+  'organization admin inherits tenant-scoped access to every managed resource'
+);
+select lives_ok($$insert into public.store_members (store_id, user_id, role) values ('26000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000005', 'staff')$$, 'organization admin adds a store member');
+select is((select role from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000005'), 'staff', 'organization admin membership insert persists');
+select lives_ok($$update public.store_members set role = 'manager' where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000005'$$, 'organization admin changes a store member role');
+select is((select role from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000005'), 'manager', 'organization admin membership update persists');
+select lives_ok($$delete from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000005'$$, 'organization admin removes a store member');
+select is_empty($$select 1 from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000005'$$, 'organization admin membership delete persists');
 reset role;
 
 -- Manager: complete catalog CRUD is allowed, membership mutations are denied.
@@ -135,35 +200,75 @@ select results_eq(
 );
 select lives_ok($sql$
   do $manager$
+  declare
+    affected_rows integer;
   begin
     update public.stores set phone = 'manager' where id = '26000000-0000-0000-0000-000000000001';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager store update affected % rows', affected_rows; end if;
     insert into public.store_hours (id, store_id, day_of_week, open_time, close_time) values ('46000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', 1, '09:00', '17:00');
     update public.store_hours set close_time = '18:00' where id = '46000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager hours update affected % rows', affected_rows; end if;
     insert into public.menus (id, store_id, name) values ('56000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', 'Manager menu');
     update public.menus set name = 'Manager menu updated' where id = '56000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager menu update affected % rows', affected_rows; end if;
     insert into public.menu_sections (id, store_id, menu_id, name, slug) values ('57000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', '56000000-0000-0000-0000-000000000011', 'Manager section', 'manager-section');
     update public.menu_sections set name = 'Manager section updated' where id = '57000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager section update affected % rows', affected_rows; end if;
     insert into public.products (id, store_id, name, slug, base_price) values ('66000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', 'Manager product', 'manager-product', 1000);
     update public.products set name = 'Manager product updated' where id = '66000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager product update affected % rows', affected_rows; end if;
     insert into public.menu_items (id, store_id, menu_id, section_id, product_id) values ('67000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', '56000000-0000-0000-0000-000000000011', '57000000-0000-0000-0000-000000000011', '66000000-0000-0000-0000-000000000011');
     update public.menu_items set sort_order = 2 where id = '67000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager menu-item update affected % rows', affected_rows; end if;
     insert into public.option_groups (id, store_id, name, selection_type) values ('68000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', 'Manager options', 'single');
     update public.option_groups set name = 'Manager options updated' where id = '68000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager option-group update affected % rows', affected_rows; end if;
     insert into public.option_values (id, store_id, option_group_id, name) values ('69000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000011', 'Manager value');
     update public.option_values set name = 'Manager value updated' where id = '69000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager option-value update affected % rows', affected_rows; end if;
     insert into public.product_option_groups (store_id, product_id, option_group_id) values ('26000000-0000-0000-0000-000000000001', '66000000-0000-0000-0000-000000000011', '68000000-0000-0000-0000-000000000011');
     update public.product_option_groups set sort_order = 2 where store_id = '26000000-0000-0000-0000-000000000001' and product_id = '66000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager option-assignment update affected % rows', affected_rows; end if;
     delete from public.product_option_groups where store_id = '26000000-0000-0000-0000-000000000001' and product_id = '66000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager option-assignment delete affected % rows', affected_rows; end if;
     delete from public.option_values where id = '69000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager option-value delete affected % rows', affected_rows; end if;
     delete from public.option_groups where id = '68000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager option-group delete affected % rows', affected_rows; end if;
     delete from public.menu_items where id = '67000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager menu-item delete affected % rows', affected_rows; end if;
     delete from public.products where id = '66000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager product delete affected % rows', affected_rows; end if;
     delete from public.menu_sections where id = '57000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager section delete affected % rows', affected_rows; end if;
     delete from public.menus where id = '56000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager menu delete affected % rows', affected_rows; end if;
     delete from public.store_hours where id = '46000000-0000-0000-0000-000000000011';
+    get diagnostics affected_rows = row_count;
+    if affected_rows <> 1 then raise exception 'manager hours delete affected % rows', affected_rows; end if;
   end
   $manager$;
 $sql$, 'manager performs catalog and hours CRUD');
+select throws_ok(
+  $$update public.products set store_id = '26000000-0000-0000-0000-000000000002' where id = '66000000-0000-0000-0000-000000000001'$$,
+  '42501', null, 'manager cannot move a valid product across tenants'
+);
 select throws_ok(
   $$insert into public.store_members (store_id, user_id, role) values ('26000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000005', 'staff')$$,
   '42501', null, 'manager cannot add memberships'
@@ -177,6 +282,7 @@ select lives_ok($sql$
   $manager_members$;
 $sql$, 'manager membership update and delete are filtered by RLS');
 reset role;
+select is((select store_id from public.products where id = '66000000-0000-0000-0000-000000000001'), '26000000-0000-0000-0000-000000000001'::uuid, 'rejected manager move leaves product in tenant A');
 select is((select role from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000003'), 'staff', 'manager cannot change or delete memberships');
 
 -- Staff: all resources are readable; sold-out is the sole permitted mutation.
@@ -214,7 +320,15 @@ select lives_ok($sql$
     update public.option_values set name = 'Staff changed' where id = '69000000-0000-0000-0000-000000000001';
     update public.product_option_groups set sort_order = 9 where store_id = '26000000-0000-0000-0000-000000000001';
     update public.store_members set role = 'manager' where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000003';
+    delete from public.product_option_groups where store_id = '26000000-0000-0000-0000-000000000001' and product_id = '66000000-0000-0000-0000-000000000001';
+    delete from public.option_values where id = '69000000-0000-0000-0000-000000000001';
+    delete from public.menu_items where id = '67000000-0000-0000-0000-000000000001';
     delete from public.products where id = '66000000-0000-0000-0000-000000000001';
+    delete from public.option_groups where id = '68000000-0000-0000-0000-000000000001';
+    delete from public.menu_sections where id = '57000000-0000-0000-0000-000000000001';
+    delete from public.menus where id = '56000000-0000-0000-0000-000000000001';
+    delete from public.store_hours where id = '46000000-0000-0000-0000-000000000001';
+    delete from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000003';
   end
   $staff$;
 $sql$, 'staff writes outside sold-out are filtered by RLS');
@@ -222,10 +336,18 @@ select throws_ok(
   $$insert into public.menus (store_id, name) values ('26000000-0000-0000-0000-000000000001', 'Staff menu')$$,
   '42501', null, 'staff cannot create catalog rows'
 );
+select throws_ok($$insert into public.store_hours (store_id, day_of_week, open_time, close_time) values ('26000000-0000-0000-0000-000000000001', 2, '09:00', '17:00')$$, '42501', null, 'staff cannot create hours');
+select throws_ok($$insert into public.menu_sections (store_id, menu_id, name, slug) values ('26000000-0000-0000-0000-000000000001', '56000000-0000-0000-0000-000000000001', 'Staff section', 'staff-section')$$, '42501', null, 'staff cannot create sections');
+select throws_ok($$insert into public.products (store_id, name, slug, base_price) values ('26000000-0000-0000-0000-000000000001', 'Staff product', 'staff-product', 1000)$$, '42501', null, 'staff cannot create products');
+select throws_ok($$insert into public.menu_items (store_id, menu_id, section_id, product_id) values ('26000000-0000-0000-0000-000000000001', '56000000-0000-0000-0000-000000000001', '57000000-0000-0000-0000-000000000001', '66000000-0000-0000-0000-000000000003')$$, '42501', null, 'staff cannot create menu items');
+select throws_ok($$insert into public.option_groups (store_id, name, selection_type) values ('26000000-0000-0000-0000-000000000001', 'Staff options', 'single')$$, '42501', null, 'staff cannot create option groups');
+select throws_ok($$insert into public.option_values (store_id, option_group_id, name) values ('26000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000003', 'Staff value')$$, '42501', null, 'staff cannot create option values');
+select throws_ok($$insert into public.product_option_groups (store_id, product_id, option_group_id) values ('26000000-0000-0000-0000-000000000001', '66000000-0000-0000-0000-000000000003', '68000000-0000-0000-0000-000000000003')$$, '42501', null, 'staff cannot create option assignments');
 select throws_ok(
   $$insert into public.store_members (store_id, user_id, role) values ('26000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000005', 'staff')$$,
   '42501', null, 'staff cannot add memberships'
 );
+select throws_ok($$delete from public.stores where id = '26000000-0000-0000-0000-000000000001'$$, '42501', null, 'staff cannot delete stores');
 reset role;
 
 select results_eq(
@@ -274,6 +396,15 @@ select lives_ok($sql$
     update public.option_values set name = 'Cross tenant' where id = '69000000-0000-0000-0000-000000000001';
     update public.product_option_groups set sort_order = 10 where store_id = '26000000-0000-0000-0000-000000000001';
     update public.store_members set role = 'manager' where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000003';
+    delete from public.product_option_groups where store_id = '26000000-0000-0000-0000-000000000001' and product_id = '66000000-0000-0000-0000-000000000001';
+    delete from public.option_values where id = '69000000-0000-0000-0000-000000000001';
+    delete from public.menu_items where id = '67000000-0000-0000-0000-000000000001';
+    delete from public.products where id = '66000000-0000-0000-0000-000000000001';
+    delete from public.option_groups where id = '68000000-0000-0000-0000-000000000001';
+    delete from public.menu_sections where id = '57000000-0000-0000-0000-000000000001';
+    delete from public.menus where id = '56000000-0000-0000-0000-000000000001';
+    delete from public.store_hours where id = '46000000-0000-0000-0000-000000000001';
+    delete from public.store_members where store_id = '26000000-0000-0000-0000-000000000001' and user_id = '36000000-0000-0000-0000-000000000003';
   end
   $outsider$;
 $sql$, 'cross-tenant updates are filtered by RLS for every resource');
@@ -285,6 +416,7 @@ select throws_ok(
   $$insert into public.store_members (store_id, user_id, role) values ('26000000-0000-0000-0000-000000000001', '36000000-0000-0000-0000-000000000005', 'staff')$$,
   '42501', null, 'other-tenant user cannot create cross-tenant memberships'
 );
+select throws_ok($$delete from public.stores where id = '26000000-0000-0000-0000-000000000001'$$, '42501', null, 'other-tenant user cannot delete a tenant A store');
 reset role;
 
 select is((select description from public.stores where id = '26000000-0000-0000-0000-000000000001'), 'Owner updated', 'cross-tenant store update did not persist');
@@ -305,6 +437,11 @@ select is((select allowed_mime_types from storage.buckets where id = 'product-im
 select is(private.storage_object_store_id('stores/26000000-0000-0000-0000-000000000001/products/66000000-0000-0000-0000-000000000001/main.webp'), '26000000-0000-0000-0000-000000000001'::uuid, 'canonical Storage path resolves tenant store');
 select is(private.storage_object_store_id('stores/not-a-uuid/products/66000000-0000-0000-0000-000000000001/main.webp'), null, 'Storage path rejects invalid store UUID');
 select is(private.storage_object_store_id('stores/26000000-0000-0000-0000-000000000001/products/not-a-uuid/main.webp'), null, 'Storage path rejects invalid product UUID');
+select is(private.storage_object_store_id('stores/26000000000000000000000000000001/products/66000000-0000-0000-0000-000000000001/main.webp'), null, 'Storage path rejects unhyphenated store UUID alias');
+select is(private.storage_object_store_id('stores/26000000-0000-0000-0000-000000000001/products/66000000000000000000000000000001/main.webp'), null, 'Storage path rejects unhyphenated product UUID alias');
+select is(private.storage_object_store_id('stores/ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB/products/66000000-0000-0000-0000-000000000001/main.webp'), null, 'Storage path rejects uppercase store UUID alias');
+select is(private.storage_object_store_id('stores/26000000-0000-0000-0000-000000000001/products/ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB/main.webp'), null, 'Storage path rejects uppercase product UUID alias');
+select is(private.storage_object_store_id('stores/{26000000-0000-0000-0000-000000000001}/products/{66000000-0000-0000-0000-000000000001}/main.webp'), null, 'Storage path rejects brace-wrapped UUID aliases');
 select is(private.storage_object_store_id('stores/26000000-0000-0000-0000-000000000001/products/66000000-0000-0000-0000-000000000001/alternate.webp'), null, 'Storage path rejects noncanonical filename');
 select is(private.storage_object_store_id('stores/26000000-0000-0000-0000-000000000001/products/66000000-0000-0000-0000-000000000001/nested/main.webp'), null, 'Storage path rejects extra segments');
 select is(private.storage_object_store_id('bad/path.webp'), null, 'Storage path rejects unrelated prefix');
