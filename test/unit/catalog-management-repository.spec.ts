@@ -44,6 +44,8 @@ describe('management schemas', () => {
     }
     expect(catalogUpdateSchemas.products.parse({ name: 'New' })).toEqual({ name: 'New' })
     expect(catalogCreateSchemas.products.safeParse({ name: 'New', slug: 'new', basePrice: '1', store_id: uuid }).success).toBe(false)
+    expect(catalogCreateSchemas.products.safeParse({ name: 'New', slug: 'new', basePrice: '1', imagePath: 'stores/other/products/other/main.webp' }).success).toBe(false)
+    expect(catalogUpdateSchemas.products.safeParse({ imagePath: null }).success).toBe(false)
     expect(storeSettingsSchema.safeParse({}).success).toBe(false)
     expect(storeSettingsSchema.parse({ name: 'Shop' })).toEqual({ name: 'Shop' })
     expect(storeSettingsSchema.safeParse({ organizationId: uuid }).success).toBe(false)
@@ -98,6 +100,11 @@ describe('tenant-scoped management repository', () => {
     expect(result).not.toHaveProperty('base_price')
     expect(queries[0]!.query.update).toHaveBeenCalledWith({ base_price: '9007199254740993' })
     expect(queries[0]!.query.select).toHaveBeenCalledWith(expect.stringContaining('base_price::text'))
+  })
+  it('keeps product image paths output-only for the compensated image workflow', async () => {
+    const { client, queries } = mockClient()
+    await createCatalogManagementRepository(client).updateResource('store-a', 'products', uuid, { name: 'Tea', imagePath: 'stores/evil/products/evil/main.webp' })
+    expect(queries[0]!.query.update).toHaveBeenCalledWith({ name: 'Tea' })
   })
   it('scopes settings by stores.id, sold-out by tenant and id, and members by tenant and user', async () => {
     const { client, queries } = mockClient()

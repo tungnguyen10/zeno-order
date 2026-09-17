@@ -1,11 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { H3Event } from 'h3'
-import { createError, getHeader, getResponseHeader } from 'h3'
+import type { EventHandler, H3Event } from 'h3'
+import { createApp, createError, createRouter, getHeader, getResponseHeader, toWebHandler } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
+import catalogDeleteRoute from '../../server/api/merchant/stores/[storeId]/catalog/[resource]/[resourceId].delete'
+import catalogUpdateRoute from '../../server/api/merchant/stores/[storeId]/catalog/[resource]/[resourceId].patch'
+import catalogCreateRoute from '../../server/api/merchant/stores/[storeId]/catalog/[resource].post'
+import hoursRoute from '../../server/api/merchant/stores/[storeId]/hours.put'
+import managementRoute from '../../server/api/merchant/stores/[storeId]/management.get'
+import memberDeleteRoute from '../../server/api/merchant/stores/[storeId]/members/[userId].delete'
+import memberUpdateRoute from '../../server/api/merchant/stores/[storeId]/members/[userId].patch'
+import memberCreateRoute from '../../server/api/merchant/stores/[storeId]/members.post'
+import soldOutRoute from '../../server/api/merchant/stores/[storeId]/products/[productId]/sold-out.patch'
+import settingsRoute from '../../server/api/merchant/stores/[storeId]/settings.patch'
 import { CatalogManagementError } from '../../server/repositories/catalog-management.repository'
 import { parseBearerToken } from '../../server/utils/merchant-auth'
-import { createManagementHandler, createCatalogCreateHandler, createCatalogUpdateHandler, createCatalogDeleteHandler, createSoldOutHandler, createSettingsHandler, createHoursHandler, createMemberCreateHandler, createMemberUpdateHandler, createMemberDeleteHandler } from '../../server/utils/catalog-management-http'
 import type { CatalogManagementHandlerDeps } from '../../server/utils/catalog-management-http'
+import { catalogManagementHandlerDeps, createCatalogCreateHandler, createCatalogDeleteHandler, createCatalogUpdateHandler, createHoursHandler, createManagementHandler, createMemberCreateHandler, createMemberDeleteHandler, createMemberUpdateHandler, createSettingsHandler, createSoldOutHandler } from '../../server/utils/catalog-management-http'
 
 const storeId = '11111111-1111-4111-8111-111111111111'
 const resourceId = '22222222-2222-4222-8222-222222222222'
@@ -13,7 +23,7 @@ const userId = '33333333-3333-4333-8333-333333333333'
 const hours = Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, isClosed: true, openTime: null, closeTime: null }))
 const cases = [
   { factory: createManagementHandler, method: 'getSnapshot', body: undefined, args: [storeId, userId] },
-  { factory: createCatalogCreateHandler, method: 'createResource', body: { name: 'Tea', slug: 'tea', basePrice: '1000' }, args: [storeId, 'products', { name: 'Tea', slug: 'tea', basePrice: '1000', description: null, imagePath: null, isActive: true, isSoldOut: false }] },
+  { factory: createCatalogCreateHandler, method: 'createResource', body: { name: 'Tea', slug: 'tea', basePrice: '1000' }, args: [storeId, 'products', { name: 'Tea', slug: 'tea', basePrice: '1000', description: null, isActive: true, isSoldOut: false }] },
   { factory: createCatalogUpdateHandler, method: 'updateResource', body: { name: 'Tea' }, args: [storeId, 'products', resourceId, { name: 'Tea' }] },
   { factory: createCatalogDeleteHandler, method: 'deleteResource', body: undefined, args: [storeId, 'products', resourceId] },
   { factory: createSoldOutHandler, method: 'setSoldOut', body: { isSoldOut: true }, args: [storeId, resourceId, true] },
@@ -76,8 +86,16 @@ describe('management handler contract', () => {
   it('rejects invalid product and member ids', async () => {
     const sold = setup({ isSoldOut: true }, { productId: 'bad' })
     await expect(createSoldOutHandler(sold.deps)(sold.event)).rejects.toMatchObject({ statusCode: 400 })
+    expect(sold.repository).not.toHaveBeenCalled()
     const member = setup({ role: 'staff' }, { userId: 'bad' })
     await expect(createMemberUpdateHandler(member.deps)(member.event)).rejects.toMatchObject({ statusCode: 400 })
+    expect(member.repository).not.toHaveBeenCalled()
+    const memberDelete = setup(undefined, { userId: 'bad' })
+    await expect(createMemberDeleteHandler(memberDelete.deps)(memberDelete.event)).rejects.toMatchObject({ statusCode: 400 })
+    expect(memberDelete.repository).not.toHaveBeenCalled()
+    const catalogDelete = setup(undefined, { resourceId: 'bad' })
+    await expect(createCatalogDeleteHandler(catalogDelete.deps)(catalogDelete.event)).rejects.toMatchObject({ statusCode: 400 })
+    expect(catalogDelete.repository).not.toHaveBeenCalled()
   })
   it('accepts a valid composite option link token', async () => {
     const id = `${resourceId}:${userId}`
@@ -106,5 +124,51 @@ describe('management handler contract', () => {
     const error = await createSoldOutHandler(test.deps)(test.event).catch(error => error) as { statusCode: number, message: string }
     expect(error.statusCode).toBe(500)
     expect(error.message).not.toContain('secret')
+  })
+})
+
+describe('management route adapters', () => {
+  const routeCases: Array<{
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+    path: string
+    pattern: string
+    handler: EventHandler
+    body?: unknown
+    repositoryMethod: string
+  }> = [
+    { method: 'GET', pattern: '/stores/:storeId/management', path: `/stores/${storeId}/management`, handler: managementRoute, repositoryMethod: 'getSnapshot' },
+    { method: 'POST', pattern: '/stores/:storeId/catalog/:resource', path: `/stores/${storeId}/catalog/products`, handler: catalogCreateRoute, body: { name: 'Tea', slug: 'tea', basePrice: '1000' }, repositoryMethod: 'createResource' },
+    { method: 'PATCH', pattern: '/stores/:storeId/catalog/:resource/:resourceId', path: `/stores/${storeId}/catalog/products/${resourceId}`, handler: catalogUpdateRoute, body: { name: 'Tea' }, repositoryMethod: 'updateResource' },
+    { method: 'DELETE', pattern: '/stores/:storeId/catalog/:resource/:resourceId', path: `/stores/${storeId}/catalog/products/${resourceId}`, handler: catalogDeleteRoute, repositoryMethod: 'deleteResource' },
+    { method: 'PATCH', pattern: '/stores/:storeId/products/:productId/sold-out', path: `/stores/${storeId}/products/${resourceId}/sold-out`, handler: soldOutRoute, body: { isSoldOut: true }, repositoryMethod: 'setSoldOut' },
+    { method: 'PATCH', pattern: '/stores/:storeId/settings', path: `/stores/${storeId}/settings`, handler: settingsRoute, body: { name: 'Shop' }, repositoryMethod: 'updateSettings' },
+    { method: 'PUT', pattern: '/stores/:storeId/hours', path: `/stores/${storeId}/hours`, handler: hoursRoute, body: hours, repositoryMethod: 'replaceHours' },
+    { method: 'POST', pattern: '/stores/:storeId/members', path: `/stores/${storeId}/members`, handler: memberCreateRoute, body: { userId, role: 'staff' }, repositoryMethod: 'addMember' },
+    { method: 'PATCH', pattern: '/stores/:storeId/members/:userId', path: `/stores/${storeId}/members/${userId}`, handler: memberUpdateRoute, body: { role: 'manager' }, repositoryMethod: 'updateMember' },
+    { method: 'DELETE', pattern: '/stores/:storeId/members/:userId', path: `/stores/${storeId}/members/${userId}`, handler: memberDeleteRoute, repositoryMethod: 'removeMember' },
+  ]
+
+  it.each(routeCases)('$method $pattern executes the exported route through H3', async ({ method, pattern, path, handler, body, repositoryMethod }) => {
+    const test = setup(body)
+    const originalDeps = { ...catalogManagementHandlerDeps }
+    Object.assign(catalogManagementHandlerDeps, test.deps)
+    try {
+      const app = createApp()
+      const router = createRouter()
+      router.add(pattern, handler, method.toLowerCase() as Lowercase<typeof method>)
+      app.use(router)
+      const response = await toWebHandler(app)(new Request(`http://management.test${path}`, {
+        method,
+        headers: { authorization: 'Bearer valid-token', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }))
+      expect(response.status).toBe(200)
+      expect(response.headers.get('cache-control')).toBe('private, no-store')
+      expect(await response.json()).toEqual({ ok: true })
+      expect(test.methods[repositoryMethod]).toHaveBeenCalledOnce()
+    }
+    finally {
+      Object.assign(catalogManagementHandlerDeps, originalDeps)
+    }
   })
 })

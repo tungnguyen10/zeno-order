@@ -24,7 +24,7 @@ export function parseProductOptionGroupId(value: string) {
 
 const menu = z.object({ name: text, isActive: z.boolean(), sortOrder }).strict()
 const section = z.object({ menuId: resourceIdSchema, name: text, slug, description: z.string().max(1000).nullable(), sortOrder }).strict()
-const product = z.object({ name: text, slug, description: z.string().max(2000).nullable(), basePrice: money, isActive: z.boolean(), isSoldOut: z.boolean(), imagePath: z.string().max(500).nullable() }).strict()
+const product = z.object({ name: text, slug, description: z.string().max(2000).nullable(), basePrice: money, isActive: z.boolean(), isSoldOut: z.boolean() }).strict()
 const menuItem = z.object({ menuId: resourceIdSchema, sectionId: resourceIdSchema, productId: resourceIdSchema, sortOrder }).strict()
 const optionGroup = z.object({ name: text, selectionType: z.enum(['single', 'multiple']), required: z.boolean(), minSelect: z.number().int().min(0).max(99), maxSelect: z.number().int().min(1).max(99), sortOrder, isActive: z.boolean() }).strict()
 const optionValue = z.object({ optionGroupId: resourceIdSchema, name: text, priceAdjustment: money, isDefault: z.boolean(), isActive: z.boolean(), sortOrder }).strict()
@@ -40,7 +40,7 @@ const nonempty = (value: object) => Object.keys(value).length > 0
 export const catalogCreateSchemas = {
   menus: menu.extend({ isActive: z.boolean().default(true), sortOrder: sortOrder.default(0) }),
   sections: section.extend({ description: section.shape.description.default(null), sortOrder: sortOrder.default(0) }),
-  products: product.extend({ description: product.shape.description.default(null), isActive: z.boolean().default(true), isSoldOut: z.boolean().default(false), imagePath: product.shape.imagePath.default(null) }),
+  products: product.extend({ description: product.shape.description.default(null), isActive: z.boolean().default(true), isSoldOut: z.boolean().default(false) }),
   'menu-items': menuItem.extend({ sortOrder: sortOrder.default(0) }),
   'option-groups': optionGroup.extend({ sortOrder: sortOrder.default(0), isActive: z.boolean().default(true) }).refine(validBounds, 'Invalid option bounds'),
   'option-values': optionValue.extend({ priceAdjustment: money.default('0'), isDefault: z.boolean().default(false), isActive: z.boolean().default(true), sortOrder: sortOrder.default(0) }),

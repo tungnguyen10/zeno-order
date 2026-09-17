@@ -168,19 +168,19 @@ export function createCatalogUpdateHandler(deps: CatalogManagementHandlerDeps) {
 
 export function createCatalogDeleteHandler(deps: CatalogManagementHandlerDeps) {
   return managementHandler((event, repository) => {
+    const storeId = requiredStoreId(event)
     const resource = requiredCatalogResource(event)
-    return repository().deleteResource(requiredStoreId(event), resource, requiredResourceId(event, resource))
+    const resourceId = requiredResourceId(event, resource)
+    return repository().deleteResource(storeId, resource, resourceId)
   }, deps)
 }
 
 export function createSoldOutHandler(deps: CatalogManagementHandlerDeps) {
   return managementHandler(async (event, repository) => {
+    const storeId = requiredStoreId(event)
+    const productId = requiredUuidParam(event, 'productId', 'Sản phẩm không hợp lệ.')
     const body = await parsedBody(event, deps, productSoldOutSchema, 'Trạng thái sản phẩm không hợp lệ.')
-    return repository().setSoldOut(
-      requiredStoreId(event),
-      requiredUuidParam(event, 'productId', 'Sản phẩm không hợp lệ.'),
-      body.isSoldOut,
-    )
+    return repository().setSoldOut(storeId, productId, body.isSoldOut)
   }, deps)
 }
 
@@ -218,8 +218,9 @@ export function createMemberUpdateHandler(deps: CatalogManagementHandlerDeps) {
 }
 
 export function createMemberDeleteHandler(deps: CatalogManagementHandlerDeps) {
-  return managementHandler((event, repository) => repository().removeMember(
-    requiredStoreId(event),
-    requiredUuidParam(event, 'userId', 'Thành viên không hợp lệ.'),
-  ), deps)
+  return managementHandler((event, repository) => {
+    const storeId = requiredStoreId(event)
+    const memberUserId = requiredUuidParam(event, 'userId', 'Thành viên không hợp lệ.')
+    return repository().removeMember(storeId, memberUserId)
+  }, deps)
 }

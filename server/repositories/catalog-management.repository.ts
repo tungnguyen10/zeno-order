@@ -23,7 +23,7 @@ function list<T>(result: Result<T[]>): T[] { check(result.error); return result.
 const metadata: Record<CatalogResource, { table: string, fields: string, writable: string }> = {
   'menus': { table: 'menus', fields: 'id,store_id,name,is_active,sort_order,created_at,updated_at', writable: 'name,is_active,sort_order' },
   'sections': { table: 'menu_sections', fields: 'id,store_id,menu_id,name,slug,description,sort_order,created_at,updated_at', writable: 'menu_id,name,slug,description,sort_order' },
-  'products': { table: 'products', fields: 'id,store_id,name,slug,description,image_path,base_price::text,is_active,is_sold_out,created_at,updated_at', writable: 'name,slug,description,image_path,base_price,is_active,is_sold_out' },
+  'products': { table: 'products', fields: 'id,store_id,name,slug,description,image_path,base_price::text,is_active,is_sold_out,created_at,updated_at', writable: 'name,slug,description,base_price,is_active,is_sold_out' },
   'menu-items': { table: 'menu_items', fields: 'id,store_id,menu_id,section_id,product_id,sort_order,created_at', writable: 'menu_id,section_id,product_id,sort_order' },
   'option-groups': { table: 'option_groups', fields: 'id,store_id,name,selection_type,required,min_select,max_select,sort_order,is_active,created_at,updated_at', writable: 'name,selection_type,required,min_select,max_select,sort_order,is_active' },
   'option-values': { table: 'option_values', fields: 'id,store_id,option_group_id,name,price_adjustment::text,is_default,is_active,sort_order,created_at,updated_at', writable: 'option_group_id,name,price_adjustment,is_default,is_active,sort_order' },
