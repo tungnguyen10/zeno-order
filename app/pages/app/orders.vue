@@ -1,12 +1,41 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'owner', middleware: ['auth', 'has-store'] })
 useHead({ title: 'Đơn hàng' })
+
+const config = useRuntimeConfig()
+const { activeStore } = useActiveStore()
+const publicUrl = computed(() => (activeStore.value ? `${config.public.appBaseUrl}/s/${activeStore.value.slug}` : ''))
 </script>
 
 <template>
-  <section class="flex flex-col items-center gap-3 py-16 text-center">
-    <UIcon name="i-lucide-receipt" class="size-10 text-muted" />
-    <h1 class="text-lg font-semibold">Chưa có đơn hàng nào</h1>
-    <p class="max-w-xs text-sm text-muted">Khi khách đặt món, đơn sẽ hiện ở đây.</p>
-  </section>
+  <div class="flex flex-col gap-6">
+    <AppPageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn của quán." />
+
+    <ZAlert
+      v-if="activeStore && !activeStore.isAcceptingOrders"
+      color="warning"
+      title="Quán đang tạm nghỉ — khách không đặt được món"
+    >
+      <template #actions>
+        <ZButton variant="secondary" size="sm" to="/app/settings">
+          Bật nhận đơn
+        </ZButton>
+      </template>
+    </ZAlert>
+
+    <ZCard variant="raised" padding="lg">
+      <AppEmptyState
+        icon="i-lucide-receipt"
+        title="Chưa có đơn hàng nào"
+        description="Chia sẻ link đặt món để khách bắt đầu gọi món. Đơn mới sẽ hiện ở đây."
+      >
+        <template #actions>
+          <AppCopyField v-if="publicUrl" :value="publicUrl" label="Link đặt món" />
+          <ZButton variant="secondary" block icon="i-lucide-settings" to="/app/settings">
+            Mở cài đặt
+          </ZButton>
+        </template>
+      </AppEmptyState>
+    </ZCard>
+  </div>
 </template>

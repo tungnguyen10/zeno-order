@@ -20,16 +20,21 @@ const { data: store, status, refresh } = await useAsyncData(
 )
 
 const draft = reactive({ name: '', isAcceptingOrders: false })
-watch(store, (value) => {
-  if (value) Object.assign(draft, { name: value.name, isAcceptingOrders: value.isAcceptingOrders })
-}, { immediate: true })
+function resetDraft() {
+  if (store.value) Object.assign(draft, { name: store.value.name, isAcceptingOrders: store.value.isAcceptingOrders })
+}
+watch(store, resetDraft, { immediate: true })
 
 const isOwner = computed(() => store.value?.role === 'OWNER')
+const isDirty = computed(() => !!store.value && isOwner.value
+  && (draft.name !== store.value.name || draft.isAcceptingOrders !== store.value.isAcceptingOrders))
 const saving = ref(false)
 const publicUrl = computed(() => (store.value ? `${config.public.appBaseUrl}/s/${store.value.slug}` : ''))
 
+useUnsavedChangesGuard(isDirty)
+
 async function save() {
-  if (!store.value) return
+  if (!store.value || !isDirty.value) return
   saving.value = true
   try {
     await api(`/api/stores/${store.value.id}`, { method: 'PATCH', body: { ...draft } })
@@ -46,31 +51,73 @@ async function save() {
 </script>
 
 <template>
-  <section class="flex flex-col gap-6">
-    <h1 class="text-xl font-semibold">Cài đặt cửa hàng</h1>
+  <div class="flex flex-col gap-6" :class="{ 'pb-20 md:pb-0': isDirty }">
+    <AppPageHeader title="Cài đặt cửa hàng" description="Thông tin hiển thị cho khách và trạng thái nhận đơn." />
 
-    <USkeleton v-if="status === 'pending' && !store" class="h-40 w-full" />
-    <UAlert v-else-if="status === 'error'" color="error" variant="subtle" title="Không tải được cài đặt" />
+    <div v-if="status === 'pending' && !store" class="flex flex-col gap-4" aria-busy="true" aria-label="Đang tải cài đặt">
+      <USkeleton v-for="i in 3" :key="i" class="h-32 w-full rounded-md" />
+    </div>
+
+    <ZAlert v-else-if="status === 'error'" color="error" title="Không tải được cài đặt">
+      <template #actions>
+        <ZButton variant="secondary" size="sm" icon="i-lucide-refresh-cw" @click="refresh()">
+          Thử lại
+        </ZButton>
+      </template>
+    </ZAlert>
 
     <template v-else-if="store">
-      <UFormField label="Tên cửa hàng" name="name">
-        <UInput v-model="draft.name" :disabled="!isOwner" size="xl" class="w-full" />
-      </UFormField>
+      <ZAlert v-if="!isOwner" color="info" title="Chỉ chủ cửa hàng mới thay đổi được cài đặt." />
 
-      <USwitch
-        v-model="draft.isAcceptingOrders"
-        :disabled="!isOwner"
-        size="lg"
-        label="Đang nhận đơn"
-        description="Tắt khi quán tạm nghỉ; khách vẫn xem được menu."
-      />
+      <form id="store-settings" class="flex flex-col gap-6" @submit.prevent="save">
+        <ZCard title="Thông tin cửa hàng" padding="lg">
+          <ZFormField label="Tên cửa hàng" name="name">
+            <ZInput v-model="draft.name" :disabled="!isOwner" size="lg" autocomplete="organization" />
+          </ZFormField>
+        </ZCard>
 
-      <UFormField label="Link đặt món">
-        <UInput :model-value="publicUrl" readonly size="xl" class="w-full" />
-      </UFormField>
+        <ZCard title="Nhận đơn" padding="lg">
+          <ZSwitch
+            v-model="draft.isAcceptingOrders"
+            :disabled="!isOwner"
+            label="Đang nhận đơn"
+            description="Tắt khi quán tạm nghỉ; khách vẫn xem được menu."
+          />
+        </ZCard>
 
-      <UButton v-if="isOwner" size="xl" block :loading="saving" @click="save">Lưu thay đổi</UButton>
-      <p v-else class="text-sm text-muted">Chỉ chủ cửa hàng mới thay đổi được cài đặt.</p>
+        <ZCard title="Link đặt món" description="Gửi cho khách hoặc in lên QR tại bàn." padding="lg">
+          <div class="flex flex-col gap-3">
+            <AppCopyField :value="publicUrl" label="Link đặt món" />
+            <ZButton variant="ghost" icon="i-lucide-external-link" :to="publicUrl" target="_blank" class="self-start">
+              Mở trang khách
+            </ZButton>
+          </div>
+        </ZCard>
+
+        <div v-if="isOwner" class="hidden md:flex md:justify-end md:gap-3">
+          <ZButton variant="ghost" :disabled="!isDirty || saving" @click="resetDraft">
+            Hủy
+          </ZButton>
+          <ZButton type="submit" :disabled="!isDirty" :loading="saving">
+            Lưu thay đổi
+          </ZButton>
+        </div>
+      </form>
+
+      <div
+        v-if="isOwner"
+        v-show="isDirty"
+        class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-default bg-default/95 px-4 py-3 backdrop-blur md:hidden"
+      >
+        <div class="mx-auto flex max-w-lg gap-3">
+          <ZButton variant="ghost" :disabled="saving" @click="resetDraft">
+            Hủy
+          </ZButton>
+          <ZButton type="submit" form="store-settings" class="flex-1" :loading="saving">
+            Lưu thay đổi
+          </ZButton>
+        </div>
+      </div>
     </template>
-  </section>
+  </div>
 </template>

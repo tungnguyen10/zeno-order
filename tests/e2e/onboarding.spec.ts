@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
+import { expectNoHorizontalOverflow } from './support/layout'
 
 const PASSWORD = 'E2e-Password-123'
 
@@ -55,6 +56,7 @@ test('visitor is redirected to login with a return path', async ({ page }) => {
 })
 
 test('owner signs up, onboards, edits settings, survives reload and signs out', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 360, height: 740 })
   const stamp = `${Date.now().toString(36)}${testInfo.project.name === 'mobile-safari' ? 's' : 'c'}`
   const email = `e2e+${stamp}@example.com`
   const slug = `e2e-${stamp}`
@@ -89,6 +91,38 @@ test('owner signs up, onboards, edits settings, survives reload and signs out', 
   await expect(page.getByText('Đã lưu cài đặt', { exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('switch', { name: 'Đang nhận đơn' })).toBeChecked()
+
+  await expectNoHorizontalOverflow(page)
+
+  // A dismissed unsaved-changes prompt keeps the owner on the page.
+  const longName = 'Trà Sữa Mây Ngàn Chi Nhánh Nguyễn Thị Minh Khai Quận Một'
+  await page.getByLabel('Tên cửa hàng').fill(longName)
+  page.once('dialog', dialog => void dialog.dismiss())
+  await page.getByRole('link', { name: 'Đơn hàng', exact: true }).click()
+  await expect(page).toHaveURL(/\/app\/settings$/)
+
+  // Saving clears the dirty state, so leaving afterwards must not prompt.
+  await page.getByRole('button', { name: 'Lưu thay đổi' }).click()
+  await expect(page.getByRole('button', { name: 'Lưu thay đổi' })).toBeHidden()
+  await expect(page.getByTestId('active-store-name')).toHaveText(longName)
+  await expectNoHorizontalOverflow(page)
+  let prompted = false
+  const onDialog = (dialog: { dismiss: () => Promise<void> }) => {
+    prompted = true
+    void dialog.dismiss()
+  }
+  page.on('dialog', onDialog)
+  await page.getByRole('link', { name: 'Đơn hàng', exact: true }).click()
+  await expect(page).toHaveURL(/\/app\/orders$/)
+  page.off('dialog', onDialog)
+  expect(prompted).toBe(false)
+  await expectNoHorizontalOverflow(page)
+
+  // Tablet/desktop switches to the sidebar.
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await expect(page.getByTestId('sidebar-nav')).toBeVisible()
+  await expect(page.getByTestId('bottom-nav')).toBeHidden()
+  await page.setViewportSize({ width: 360, height: 740 })
 
   await expectTouchTarget(page.getByRole('button', { name: 'Tài khoản' }))
   await page.getByRole('button', { name: 'Tài khoản' }).click()
