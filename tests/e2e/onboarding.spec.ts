@@ -4,8 +4,8 @@ const PASSWORD = 'E2e-Password-123'
 
 async function expectTouchTarget(locator: Locator) {
   await expect(locator).toBeVisible()
-  const box = await locator.boundingBox()
-  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
+  // Polls so popover/menu open animations (scale-in) can settle before measuring.
+  await expect.poll(async () => (await locator.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
 }
 
 /** Points 22px above and below the control's centre must still hit it (≥44px tall hit area). */
@@ -78,7 +78,7 @@ test('owner signs up, onboards, edits settings, survives reload and signs out', 
   await page.reload()
   await expect(page.getByTestId('active-store-name')).toHaveText('Trà Sữa E2E')
 
-  await page.getByRole('link', { name: 'Cài đặt' }).click()
+  await page.getByRole('link', { name: 'Cài đặt', exact: true }).click()
   await expect(page).toHaveURL(/\/app\/settings$/)
   const accepting = page.getByRole('switch', { name: 'Đang nhận đơn' })
   await expect(accepting).not.toBeChecked()
@@ -90,6 +90,8 @@ test('owner signs up, onboards, edits settings, survives reload and signs out', 
   await page.reload()
   await expect(page.getByRole('switch', { name: 'Đang nhận đơn' })).toBeChecked()
 
+  await expectTouchTarget(page.getByRole('button', { name: 'Tài khoản' }))
+  await page.getByRole('button', { name: 'Tài khoản' }).click()
   await expectTouchTarget(page.getByRole('button', { name: 'Đăng xuất' }))
   await page.getByRole('button', { name: 'Đăng xuất' }).click()
   await expect(page).toHaveURL(/\/login/)
@@ -133,7 +135,7 @@ test('switching accounts without signing out never shows the previous user\'s st
     contentType: 'application/json',
     body: JSON.stringify({ code: 'UNAUTHENTICATED', message: 'Phiên đăng nhập đã hết hạn' }),
   }))
-  await page.getByRole('link', { name: 'Cài đặt' }).click()
+  await page.getByRole('link', { name: 'Cài đặt', exact: true }).click()
   await expect(page).toHaveURL(/\/login\?redirect=(\/|%2F)app(\/|%2F)settings$/)
   await page.unroute('**/api/stores/**')
 
