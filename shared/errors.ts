@@ -1,0 +1,26 @@
+export const ERROR_STATUS = {
+  VALIDATION_FAILED: 400,
+  UNAUTHENTICATED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  STATUS_CONFLICT: 409,
+  CART_STALE: 409,
+  SLUG_TAKEN: 409,
+  ORG_EXISTS: 409,
+  STORE_CLOSED: 422,
+  MODE_DISABLED: 422,
+  INVALID_TABLE: 422,
+  INVALID_ZONE: 422,
+  PAYMENT_METHOD_UNAVAILABLE: 422,
+  RATE_LIMITED: 429,
+  INTERNAL: 500,
+  SERVICE_UNAVAILABLE: 503,
+} as const
+
+export type ErrorCode = keyof typeof ERROR_STATUS
+
+export interface ApiErrorBody {
+  code: ErrorCode
+  message: string
+  details?: unknown
+}
