@@ -76,7 +76,7 @@ Dark mode: chip dùng nền accent ở 15–20% opacity, chữ sắc độ 300�
 | `shadow-raised-sm` | `3px 3px 6px #D5C9B8, -3px -3px 6px #FFFFFF` | `0 2px 4px rgb(0 0 0 / .3)` |
 | `shadow-inset` | `inset 4px 4px 8px #D5C9B8, inset -4px -4px 8px #FFFFFF` | `inset 0 1px 2px rgb(0 0 0 / .4)` + `border` |
 | `shadow-sm/md/lg` | 2/4 · 4/12 · 8/24 (offset/blur), đen 6% · 8% · 12% | như light, opacity ×3 |
-| focus ring | 3px `primary` / 25% | 3px `primary` / 40% |
+| focus | Button/link: outline 2px `primary`, offset 2px · Input: ring 2px `primary` (WCAG 2.2 non-text 3:1; ring 25% của CafeBlend không đạt) | như light |
 
 Radius: `sm` 6px (tag), `md` 12px (button, card, input), `lg` 16px (modal, panel), `full`.
 Spacing: bước 4/8px của Tailwind (khớp base unit 8px).

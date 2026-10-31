@@ -50,6 +50,8 @@ export default defineConfig({
           include: ['tests/nuxt/**/*.test.ts'],
           environment: 'nuxt',
           environmentOptions: { nuxt: { domEnvironment: 'happy-dom' } },
+          // Booting the Nuxt test app takes ~10s under parallel load; the default 10s hook limit flakes.
+          hookTimeout: 60_000,
         },
       }),
     ],
