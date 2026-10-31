@@ -11,6 +11,7 @@ const email = computed(() => me.value?.user.email ?? '')
 const initial = computed(() => name.value.trim().charAt(0).toUpperCase() || '?')
 
 async function onSignOut() {
+  if (!confirmDiscardUnsavedChanges()) return
   try {
     await signOut()
   }

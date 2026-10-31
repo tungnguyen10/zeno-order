@@ -5,7 +5,8 @@ const storeItems = computed(() => stores.value.map(store => ({ label: store.name
 const selectedStoreId = computed({
   get: () => activeStore.value?.id,
   set: (id) => {
-    if (id) setActiveStore(id)
+    if (!id || id === activeStore.value?.id) return
+    if (confirmDiscardUnsavedChanges()) setActiveStore(id)
   },
 })
 </script>

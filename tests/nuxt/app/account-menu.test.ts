@@ -37,4 +37,19 @@ describe('AppAccountMenu', () => {
     await fireEvent.click(signOutButton!)
     expect(navigate).toHaveBeenLastCalledWith('/login')
   })
+
+  it('does not sign out when the user keeps unsaved changes', async () => {
+    signOut.mockClear()
+    navigate.mockClear()
+    Object.defineProperty(window, 'confirm', { value: vi.fn().mockReturnValue(false), configurable: true, writable: true })
+    useState('unsaved-changes').value = true
+    useState('me', () => ({ user: { id: 'u1', email: 'a@b.vn', displayName: null }, organizations: [], stores: [] }))
+    await renderSuspended(AppAccountMenu)
+    const [signOutButton] = screen.getAllByRole('button', { name: 'Đăng xuất' })
+    await fireEvent.click(signOutButton!)
+    expect(window.confirm).toHaveBeenCalled()
+    expect(signOut).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+    useState('unsaved-changes').value = false
+  })
 })
