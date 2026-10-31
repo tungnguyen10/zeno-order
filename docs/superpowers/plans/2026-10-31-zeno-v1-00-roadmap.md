@@ -49,6 +49,8 @@
 3. **Migration:** mỗi PR có thay đổi schema thì sinh đúng một file `drizzle-kit generate --name <pr>`, chạy `npm run db:check` và áp dụng lên branch `test` trước khi chạy integration test.
 4. **Test DB:** integration/api test gọi `resetDb()` trong `beforeEach`/`beforeAll` và tạo dữ liệu qua `tests/support/fixtures.ts`; mở rộng fixtures thay vì insert thô trong từng test.
 5. **Không nới test để cho xanh.** Test fail thì sửa code sản phẩm.
+6. **Tạm ngưng organization:** Khi thêm tính năng tạm ngưng organization: `findStoreAccess`/`listAccessibleStores` phải join `organizations.status = 'ACTIVE'` và thêm test.
+7. **Tạo membership:** Mọi luồng tạo membership (vd. nhận lời mời PR4) phải gọi `ensureProfile` trong cùng transaction; PR4 phải quyết định có bắt buộc email đã xác minh (claim `emailVerified`) trước khi nhận lời mời.
 
 ## Review Focus (toàn dự án)
 
