@@ -4,22 +4,6 @@ export interface SessionUser {
   name: string | null
 }
 
-export class AuthFailure extends Error {}
-
-type AuthErrorLike = { code?: string, message?: string } | null | undefined
-
-// @neon/auth throws AuthApiError (Better Auth body in `.error`) on non-2xx instead of returning `{ error }`.
-async function runAuthAction(action: () => Promise<{ error?: AuthErrorLike }>): Promise<void> {
-  let result: { error?: AuthErrorLike }
-  try {
-    result = await action()
-  }
-  catch (err) {
-    throw new AuthFailure(translateAuthError((err as { error?: AuthErrorLike } | null)?.error))
-  }
-  if (result.error) throw new AuthFailure(translateAuthError(result.error))
-}
-
 export function useAuth() {
   const { $authClient, $tokenCache } = useNuxtApp()
   const user = useState<SessionUser | null>('auth:user', () => null)
