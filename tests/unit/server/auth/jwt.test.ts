@@ -1,4 +1,4 @@
-import { createLocalJWKSet, SignJWT } from 'jose'
+import { createLocalJWKSet, errors, SignJWT, type JWTVerifyGetKey } from 'jose'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createJwtVerifier, getJwtVerifier, resetJwtVerifierForTests } from '../../../../server/auth/jwt'
 import { AppError } from '../../../../server/utils/errors'
@@ -62,6 +62,46 @@ describe('createJwtVerifier', () => {
   it('rejects garbage', async () => {
     await expectUnauthenticated(verify('not-a-jwt'))
   })
+
+  it('attaches the jose error as cause for invalid tokens', async () => {
+    const token = await auth.sign({ sub: 'u', expiresIn: '-1m' })
+    const err = await verify(token).catch((e: unknown) => e)
+    expect(err).toMatchObject({ code: 'UNAUTHENTICATED' })
+    expect((err as AppError).cause).toBeInstanceOf(errors.JWTExpired)
+  })
+})
+
+describe('createJwtVerifier with an unavailable JWKS', () => {
+  function verifierThrowing(error: unknown) {
+    const jwks: JWTVerifyGetKey = async () => {
+      throw error
+    }
+    return createJwtVerifier({ jwks, issuer: TEST_ISSUER })
+  }
+
+  it('maps a JWKS timeout to SERVICE_UNAVAILABLE', async () => {
+    const timeout = new errors.JWKSTimeout()
+    const err = await verifierThrowing(timeout)(await auth.sign({ sub: 'u' })).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(AppError)
+    expect(err).toMatchObject({ code: 'SERVICE_UNAVAILABLE' })
+    expect((err as AppError).cause).toBe(timeout)
+  })
+
+  it('maps an invalid JWKS response to SERVICE_UNAVAILABLE', async () => {
+    await expect(verifierThrowing(new errors.JWKSInvalid())(await auth.sign({ sub: 'u' })))
+      .rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' })
+  })
+
+  it('maps a network failure to SERVICE_UNAVAILABLE', async () => {
+    const network = new TypeError('fetch failed')
+    const err = await verifierThrowing(network)(await auth.sign({ sub: 'u' })).catch((e: unknown) => e)
+    expect(err).toMatchObject({ code: 'SERVICE_UNAVAILABLE' })
+    expect((err as AppError).cause).toBe(network)
+  })
+
+  it('keeps a missing key as UNAUTHENTICATED', async () => {
+    await expectUnauthenticated(verifierThrowing(new errors.JWKSNoMatchingKey())(await auth.sign({ sub: 'u' })))
+  })
 })
 
 describe('getJwtVerifier', () => {
@@ -93,6 +133,7 @@ describe('getJwtVerifier', () => {
 
   it('caches the verifier instance', () => {
     vi.stubEnv('AUTH_TEST_JWKS', auth.jwksJson)
+    vi.stubEnv('VERCEL_ENV', 'preview')
     expect(getJwtVerifier()).toBe(getJwtVerifier())
   })
 })

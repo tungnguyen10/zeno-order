@@ -34,6 +34,25 @@ describe('requireUser', () => {
     await expect(requireUser(eventWith({ authorization: 'Basic abc' }))).rejects.toMatchObject({ code: 'UNAUTHENTICATED' })
   })
 
+  it('rejects a malformed Bearer header', async () => {
+    vi.stubEnv('AUTH_TEST_JWKS', auth.jwksJson)
+    await expect(requireUser(eventWith({ authorization: 'Bearer a b' }))).rejects.toMatchObject({ code: 'UNAUTHENTICATED' })
+  })
+
+  it('rejects a bearer token signed by an unknown key', async () => {
+    vi.stubEnv('AUTH_TEST_JWKS', auth.jwksJson)
+    const other = await createTestAuth()
+    const event = eventWith({ authorization: `Bearer ${await other.sign({ sub: 'user-x' })}` })
+    await expect(requireUser(event)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' })
+    expect(event.context.user).toBeUndefined()
+  })
+
+  it('accepts a lowercase bearer scheme', async () => {
+    vi.stubEnv('AUTH_TEST_JWKS', auth.jwksJson)
+    const event = eventWith({ authorization: `bearer ${await auth.sign({ sub: 'user-8' })}` })
+    await expect(requireUser(event)).resolves.toMatchObject({ userId: 'user-8' })
+  })
+
   it('verifies the bearer token and caches the user on the event', async () => {
     vi.stubEnv('AUTH_TEST_JWKS', auth.jwksJson)
     const event = eventWith({ authorization: `Bearer ${await auth.sign({ sub: 'user-9', email: 'n@example.com' })}` })

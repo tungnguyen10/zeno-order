@@ -1,4 +1,4 @@
-import { createLocalJWKSet, createRemoteJWKSet, jwtVerify, type JSONWebKeySet, type JWTVerifyGetKey } from 'jose'
+import { createLocalJWKSet, createRemoteJWKSet, errors, jwtVerify, type JSONWebKeySet, type JWTVerifyGetKey } from 'jose'
 import { AppError } from '../utils/errors'
 import { requireEnv } from '../utils/env'
 
@@ -19,17 +19,28 @@ export function createJwtVerifier(config: { jwks: JWTVerifyGetKey, issuer: strin
         issuer: config.issuer,
         algorithms: ['EdDSA', 'Ed25519'],
       })
-      if (typeof payload.sub !== 'string' || payload.sub.length === 0) throw new Error('missing sub')
+      if (typeof payload.sub !== 'string' || payload.sub.length === 0) {
+        throw new errors.JWTClaimValidationFailed('missing "sub" claim', payload, 'sub', 'missing')
+      }
       return {
         userId: payload.sub,
         email: typeof payload.email === 'string' ? payload.email : null,
         name: typeof payload.name === 'string' ? payload.name : null,
       }
     }
-    catch {
-      throw new AppError('UNAUTHENTICATED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn')
+    catch (err) {
+      throw toAuthError(err)
     }
   }
+}
+
+// JWKS outages must surface as 503 (and get logged), not masquerade as an expired session.
+function toAuthError(err: unknown): AppError {
+  const jwksUnavailable = err instanceof errors.JWKSTimeout || err instanceof errors.JWKSInvalid
+  if (jwksUnavailable || !(err instanceof errors.JOSEError)) {
+    return new AppError('SERVICE_UNAVAILABLE', 'Không xác thực được phiên đăng nhập, vui lòng thử lại', undefined, { cause: err })
+  }
+  return new AppError('UNAUTHENTICATED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn', undefined, { cause: err })
 }
 
 let cached: JwtVerifier | undefined
