@@ -8,6 +8,8 @@ const PORT = 3100
 export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 60_000,
+  // Dev server serves Nuxt UI's reka-ui unbundled (~900 modules), so first paint in a fresh context takes ~5s.
+  expect: { timeout: 15_000 },
   retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: `http://localhost:${PORT}`,

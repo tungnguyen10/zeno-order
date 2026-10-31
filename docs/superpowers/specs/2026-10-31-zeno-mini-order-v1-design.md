@@ -202,7 +202,7 @@ Nuxt UI v4, mobile-first (360px), tiếng Việt.
 `GET /api/stores/:id/summary?date=YYYY-MM-DD` theo ngày `Asia/Ho_Chi_Minh`: tổng đơn, hoàn tất, hủy, tổng giá trị đơn (không tính CANCELLED), **đã thu** tách `SEPAY` / `CASH` / `BANK_MANUAL` (từ `order_payments`), còn chưa thu. Owner lọc theo store; staff chỉ store được cấp.
 
 ## 9. Error codes
-`VALIDATION_FAILED` 400 · `UNAUTHENTICATED` 401 · `FORBIDDEN` 403 · `NOT_FOUND` 404 · `STATUS_CONFLICT`, `CART_STALE`, `SLUG_TAKEN` 409 · `STORE_CLOSED`, `MODE_DISABLED`, `INVALID_TABLE`, `INVALID_ZONE`, `PAYMENT_METHOD_UNAVAILABLE` 422 · `RATE_LIMITED` 429 · `INTERNAL` 500.
+`VALIDATION_FAILED` 400 · `UNAUTHENTICATED` 401 · `FORBIDDEN` 403 · `NOT_FOUND` 404 · `STATUS_CONFLICT`, `CART_STALE`, `SLUG_TAKEN`, `ORG_EXISTS` 409 · `STORE_CLOSED`, `MODE_DISABLED`, `INVALID_TABLE`, `INVALID_ZONE`, `PAYMENT_METHOD_UNAVAILABLE` 422 · `RATE_LIMITED` 429 · `INTERNAL` 500 · `SERVICE_UNAVAILABLE` 503.
 
 ## 10. Testing
 - **Unit**: pricing/phí giao, option validation, transitions, matching decision table, HMAC verify, AES-GCM encrypt/decrypt, phone normalize, public_code/payment_code generators.
