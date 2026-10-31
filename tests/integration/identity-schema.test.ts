@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeDb, getDb } from '../../server/db/client'
 import { getPgError } from '../../server/db/errors'
-import { organizationMembers, organizations, storeMembers, stores, userProfiles } from '../../server/db/schema'
+import { organizationMembers, organizations, storeInvitations, storeMembers, stores, userProfiles } from '../../server/db/schema'
 import { resetDb } from '../support/db'
 
 const db = () => getDb()
@@ -53,15 +53,38 @@ describe('identity schema', () => {
 
   it('enforces globally unique store slugs', async () => {
     await seedOrgWithStore('trung-slug')
+    const [otherOrg] = await db().insert(organizations).values({ name: 'Other org', slug: 'org-other' }).returning()
     let caught: unknown
     try {
-      await seedOrgWithStore('trung-slug')
+      await db().insert(stores).values({ orgId: otherOrg!.id, name: 'Duplicate', slug: 'trung-slug' })
     }
     catch (err) {
       caught = err
     }
-    // organizations slug "org-trung-slug" collides first; both are unique violations
-    expect(getPgError(caught).code).toBe('23505')
+    expect(getPgError(caught)).toMatchObject({ code: '23505', constraint: 'stores_slug_unique' })
+  })
+
+  it('rejects a store_invitation whose org_id does not own the store (composite FK)', async () => {
+    const a = await seedOrgWithStore('invite-a')
+    const b = await seedOrgWithStore('invite-b')
+    const userId = `user_${randomUUID()}`
+    await db().insert(userProfiles).values({ userId, email: 'owner@example.com' })
+
+    let caught: unknown
+    try {
+      await db().insert(storeInvitations).values({
+        orgId: b.org.id,
+        storeId: a.store.id,
+        email: 'invitee@example.com',
+        tokenHash: `hash_${randomUUID()}`,
+        expiresAt: new Date(Date.now() + 86_400_000),
+        createdBy: userId,
+      })
+    }
+    catch (err) {
+      caught = err
+    }
+    expect(getPgError(caught)).toMatchObject({ code: '23503', constraint: 'store_invitations_store_fk' })
   })
 
   it('prevents duplicate membership of the same user in an org', async () => {
