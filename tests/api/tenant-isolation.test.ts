@@ -36,6 +36,13 @@ async function call(method: string, path: string, token?: string | null, body?: 
   return { status: res.status, body: json }
 }
 
+const errorCodes: Record<number, string> = { 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 404: 'NOT_FOUND' }
+
+async function storeName(storeId: string) {
+  const [row] = await getDb().select({ name: stores.name }).from(stores).where(eq(stores.id, storeId))
+  return row!.name
+}
+
 beforeAll(async () => {
   await resetDb()
   const a = await createTenant('a1')
@@ -70,13 +77,13 @@ describe('authentication', () => {
   })
 
   it('rejects a garbage bearer token', async () => {
-    expect((await call('GET', '/api/me', 'not-a-jwt')).status).toBe(401)
+    expect(await call('GET', '/api/me', 'not-a-jwt')).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
   })
 
   it('rejects a token signed by another key', async () => {
     const other = await createTestAuth()
     const token = await other.sign({ sub: 'intruder', email: 'i@example.com' })
-    expect((await call('GET', '/api/me', token)).status).toBe(401)
+    expect(await call('GET', '/api/me', token)).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
   })
 })
 
@@ -91,6 +98,7 @@ describe('GET /api/stores/:storeId', () => {
     const res = await call('GET', `/api/stores/${ids.storeA1}`, tokens[actor])
     expect(res.status).toBe(status)
     if (status === 200) expect(res.body).toMatchObject({ id: ids.storeA1, orgId: ids.orgA })
+    else expect(res.body).toMatchObject({ code: errorCodes[status] })
   })
 
   it('treats another tenant\'s real store exactly like a random id', async () => {
@@ -101,7 +109,7 @@ describe('GET /api/stores/:storeId', () => {
 
   it('returns 404 (not 400/500) for a non-uuid id', async () => {
     const res = await call('GET', '/api/stores/not-a-uuid', tokens.ownerA)
-    expect(res.status).toBe(404)
+    expect(res).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
   })
 
   it('reports the caller role', async () => {
@@ -118,8 +126,13 @@ describe('PATCH /api/stores/:storeId', () => {
     ['ownerB', 404],
     ['ownerA', 200],
   ])('%s → %i', async (actor, status) => {
+    const nameBefore = await storeName(ids.storeA1)
     const res = await call('PATCH', `/api/stores/${ids.storeA1}`, tokens[actor], { name: `Đổi bởi ${actor}` })
     expect(res.status).toBe(status)
+    if (status !== 200) {
+      expect(res.body).toMatchObject({ code: errorCodes[status] })
+      expect(await storeName(ids.storeA1)).toBe(nameBefore)
+    }
   })
 
   it('only the owner change was persisted', async () => {
