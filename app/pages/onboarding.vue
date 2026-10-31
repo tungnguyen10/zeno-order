@@ -3,7 +3,7 @@ import type { Form, FormSubmitEvent } from '@nuxt/ui'
 import { onboardingInputSchema, slugify, type OnboardingInput } from '#shared/schemas/identity'
 
 definePageMeta({ middleware: ['auth'] })
-useHead({ title: 'Tạo cửa hàng — ZENO' })
+useHead({ title: 'Tạo cửa hàng' })
 
 const { load } = useMe()
 const existing = await load()

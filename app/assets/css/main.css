@@ -1,2 +1,172 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+@theme static {
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-coffee-50: #faf4ee;
+  --color-coffee-100: #f2e4d5;
+  --color-coffee-200: #e4c9ac;
+  --color-coffee-300: #d4a97f;
+  --color-coffee-400: #c08a5e;
+  --color-coffee-500: #a87348;
+  --color-coffee-600: #8b5e3c;
+  --color-coffee-700: #6b4226;
+  --color-coffee-800: #553420;
+  --color-coffee-900: #3e2723;
+  --color-coffee-950: #24160f;
+
+  --color-caramel-50: #fbf5ee;
+  --color-caramel-100: #f5e7d6;
+  --color-caramel-200: #ebcfad;
+  --color-caramel-300: #ddb387;
+  --color-caramel-400: #c4956a;
+  --color-caramel-500: #b07d52;
+  --color-caramel-600: #946441;
+  --color-caramel-700: #774f35;
+  --color-caramel-800: #5e3f2c;
+  --color-caramel-900: #4a3224;
+  --color-caramel-950: #2a1b13;
+
+  --color-cream-50: #fdf6ec;
+  --color-cream-100: #faf0e1;
+  --color-cream-200: #f0e6d6;
+  --color-cream-300: #e8ddd0;
+  --color-cream-400: #c9b8a6;
+  --color-cream-500: #a08c7a;
+  --color-cream-600: #7d6656;
+  --color-cream-700: #6d4c41;
+  --color-cream-800: #3d2e25;
+  --color-cream-900: #2a1f19;
+  --color-cream-950: #1c1410;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+@theme inline {
+  --shadow-raised: var(--zeno-shadow-raised);
+  --shadow-raised-sm: var(--zeno-shadow-raised-sm);
+  --shadow-inset: var(--zeno-shadow-inset);
+}
+
+:root {
+  --zeno-bg: #fdf6ec;
+  --zeno-surface: #ffffff;
+  --zeno-surface-inset: #f0e6d6;
+  --zeno-surface-inset-hover: #ebe0d0;
+  --zeno-surface-hover: #faf0e1;
+  --zeno-surface-disabled: #f5ede3;
+  --zeno-border: #e8ddd0;
+  --zeno-text: #3e2723;
+  --zeno-text-muted: #6d4c41;
+  --zeno-text-dimmed: #8d7466;
+  --zeno-primary: #8b5e3c;
+  --zeno-primary-hover: #6b4226;
+  --zeno-on-primary: #ffffff;
+  --zeno-error-wash: #fef2f2;
+  --zeno-shadow-raised: 6px 6px 12px #d5c9b8, -6px -6px 12px #ffffff;
+  --zeno-shadow-raised-sm: 3px 3px 6px #d5c9b8, -3px -3px 6px #ffffff;
+  --zeno-shadow-inset: inset 4px 4px 8px #d5c9b8, inset -4px -4px 8px #ffffff;
+
+  --ui-radius: 0.5rem;
+  --ui-primary: var(--zeno-primary);
+  --ui-success: var(--ui-color-success-700);
+  --ui-warning: var(--ui-color-warning-700);
+  --ui-error: var(--ui-color-error-700);
+  --ui-info: var(--ui-color-info-600);
+  --ui-bg: var(--zeno-bg);
+  --ui-bg-muted: var(--zeno-surface-hover);
+  --ui-bg-elevated: var(--zeno-surface-hover);
+  --ui-bg-accented: var(--zeno-surface-inset);
+  --ui-border: var(--zeno-border);
+  --ui-border-muted: var(--zeno-border);
+  --ui-border-accented: #d9cbb8;
+  --ui-text: var(--zeno-text);
+  --ui-text-highlighted: var(--zeno-text);
+  --ui-text-toned: var(--zeno-text);
+  --ui-text-muted: var(--zeno-text-muted);
+  --ui-text-dimmed: var(--zeno-text-dimmed);
+  --ui-text-inverted: var(--zeno-on-primary);
+}
+
+.dark {
+  --zeno-bg: #1c1410;
+  --zeno-surface: #2a1f19;
+  --zeno-surface-inset: #15100c;
+  --zeno-surface-inset-hover: #1e1611;
+  --zeno-surface-hover: #33261f;
+  --zeno-surface-disabled: #221913;
+  --zeno-border: #3d2e25;
+  --zeno-text: #f5ebdd;
+  --zeno-text-muted: #c9b8a6;
+  --zeno-text-dimmed: #9c8a7a;
+  --zeno-primary: #d4a373;
+  --zeno-primary-hover: #e0b88e;
+  --zeno-on-primary: #1c1410;
+  --zeno-error-wash: #2b1414;
+  --zeno-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.35);
+  --zeno-shadow-raised-sm: 0 2px 4px rgb(0 0 0 / 0.3);
+  --zeno-shadow-inset: inset 0 1px 2px rgb(0 0 0 / 0.4);
+
+  --ui-success: var(--ui-color-success-400);
+  --ui-warning: var(--ui-color-warning-400);
+  --ui-error: var(--ui-color-error-400);
+  --ui-info: var(--ui-color-info-400);
+  --ui-border-accented: #4a3a2f;
+}
+
+@utility text-h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.875rem;
+  line-height: 2.375rem;
+  letter-spacing: -0.01em;
+  @media (width >= 40rem) {
+    font-size: 2.125rem;
+    line-height: 2.625rem;
+  }
+}
+
+@utility text-h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  @media (width >= 40rem) {
+    font-size: 1.625rem;
+    line-height: 2.125rem;
+  }
+}
+
+@utility text-h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

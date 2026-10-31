@@ -10,8 +10,13 @@ const switchTouchTarget = {
 export default defineAppConfig({
   ui: {
     colors: {
-      primary: 'emerald',
-      neutral: 'stone',
+      primary: 'coffee',
+      secondary: 'caramel',
+      neutral: 'cream',
+      success: 'emerald',
+      warning: 'amber',
+      error: 'red',
+      info: 'indigo',
     },
     button: { variants: { size: touchTarget } },
     input: { variants: { size: touchTarget } },

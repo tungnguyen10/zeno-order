@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'ZENO Order' })
+useHead({ title: 'ZENO Order', titleTemplate: '%s' })
 </script>
 
 <template>

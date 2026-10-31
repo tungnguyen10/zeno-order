@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'owner', middleware: ['auth', 'has-store'] })
-useHead({ title: 'Đơn hàng — ZENO' })
+useHead({ title: 'Đơn hàng' })
 </script>
 
 <template>

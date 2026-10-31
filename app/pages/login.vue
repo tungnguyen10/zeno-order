@@ -2,7 +2,7 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { z } from 'zod'
 
-useHead({ title: 'Đăng nhập — ZENO' })
+useHead({ title: 'Đăng nhập' })
 
 const schema = z.object({
   email: z.email('Email không hợp lệ'),

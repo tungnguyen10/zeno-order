@@ -2,7 +2,7 @@
 import type { StoreDetail } from '#shared/types/identity'
 
 definePageMeta({ layout: 'owner', middleware: ['auth', 'has-store'] })
-useHead({ title: 'Cài đặt — ZENO' })
+useHead({ title: 'Cài đặt' })
 
 const api = useApi()
 const toast = useToast()

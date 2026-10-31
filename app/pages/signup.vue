@@ -2,7 +2,7 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { z } from 'zod'
 
-useHead({ title: 'Tạo tài khoản — ZENO' })
+useHead({ title: 'Tạo tài khoản' })
 
 const schema = z.object({
   name: z.string().trim().min(2, 'Cần ít nhất 2 ký tự').max(80),
