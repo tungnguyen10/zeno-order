@@ -10,7 +10,13 @@ export function defineApiHandler<T>(handler: (event: H3Event) => T | Promise<T>)
     catch (err) {
       const { status, body } = toApiError(err)
       if (status >= 500) {
-        logger.error('api.unhandled', { requestId: event.context.requestId, path: event.path.split('?')[0], err })
+        const cause = err instanceof Error ? err.cause : undefined
+        logger.error('api.unhandled', {
+          requestId: event.context.requestId,
+          path: event.path.split('?')[0],
+          err,
+          ...(cause === undefined ? {} : { cause }),
+        })
       }
       setResponseStatus(event, status)
       return body

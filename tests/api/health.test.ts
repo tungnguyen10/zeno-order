@@ -24,3 +24,18 @@ describe('GET /api/health', () => {
     expect(res.headers.get('x-request-id')).toBe('req-12345678')
   })
 })
+
+describe('API error format outside matched routes', () => {
+  it('returns NOT_FOUND for unknown /api paths', async () => {
+    const res = await fetch('/api/does-not-exist')
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ code: 'NOT_FOUND', message: 'Không tìm thấy' })
+  })
+
+  it('returns the API error body for a wrong method', async () => {
+    const res = await fetch('/api/health', { method: 'POST' })
+    // The catch-all route answers unmatched methods, so this is 404 rather than 405.
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ code: 'NOT_FOUND', message: 'Không tìm thấy' })
+  })
+})

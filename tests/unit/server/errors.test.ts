@@ -32,6 +32,36 @@ describe('toApiError', () => {
     expect(result).toEqual({ status: 400, body: { code: 'VALIDATION_FAILED', message: 'Yêu cầu không hợp lệ' } })
   })
 
+  it.each([
+    [401, 401, 'UNAUTHENTICATED'],
+    [403, 403, 'FORBIDDEN'],
+    [404, 404, 'NOT_FOUND'],
+    [405, 404, 'NOT_FOUND'],
+    [429, 429, 'RATE_LIMITED'],
+    [413, 400, 'VALIDATION_FAILED'],
+    [415, 400, 'VALIDATION_FAILED'],
+  ])('maps h3 %i to %i %s with a generic message', (h3Status, status, code) => {
+    const result = toApiError(createError({ statusCode: h3Status, statusMessage: 'raw h3 detail' }))
+    expect(result.status).toBe(status)
+    expect(result.body.code).toBe(code)
+    expect(result.body.message).not.toContain('raw h3 detail')
+    expect(result.body).not.toHaveProperty('details')
+  })
+
+  it('maps other h3 errors to INTERNAL', () => {
+    expect(toApiError(createError({ statusCode: 502 })).body.code).toBe('INTERNAL')
+  })
+
+  it('keeps an optional cause on AppError without changing the body', () => {
+    const cause = new Error('db down')
+    const err = new AppError('SERVICE_UNAVAILABLE', 'Cơ sở dữ liệu không khả dụng', undefined, { cause })
+    expect(err.cause).toBe(cause)
+    expect(toApiError(err)).toEqual({
+      status: 503,
+      body: { code: 'SERVICE_UNAVAILABLE', message: 'Cơ sở dữ liệu không khả dụng' },
+    })
+  })
+
   it('hides unknown errors behind INTERNAL without leaking the message', () => {
     const result = toApiError(new Error('connect ECONNREFUSED ******host/db'))
     expect(result).toEqual({

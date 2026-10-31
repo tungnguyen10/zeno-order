@@ -1,4 +1,4 @@
-const SENSITIVE_KEY = /phone|address|secret|token|password|authorization|signature|cookie|api[_-]?key|hmac/i
+const SENSITIVE_KEY = /phone|address|secret|token|password|authorization|signature|cookie|api[_-]?key|hmac|encryption|jwt|session|credential|private[_-]?key/i
 const CONNECTION_STRING = /\b(postgres(?:ql)?):\/\/\S+/gi
 const MAX_DEPTH = 6
 

@@ -16,6 +16,18 @@ describe('redact', () => {
     })
   })
 
+  it.each([
+    'encryptionKey',
+    'jwt',
+    'sessionId',
+    'credentials',
+    'privateKey',
+    'private_key',
+    'private-key',
+  ])('masks %s', (key) => {
+    expect(redact({ [key]: 'v', name: 'ok' })).toEqual({ [key]: '[REDACTED]', name: 'ok' })
+  })
+
   it('masks postgres connection strings inside strings', () => {
     expect(redact('failed: postgresql://u:p@h/db?sslmode=require')).toBe('failed: postgresql://[REDACTED]')
   })
