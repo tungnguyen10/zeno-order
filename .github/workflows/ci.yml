@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -37,11 +40,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Compute branch expiry
+        id: expiry
+        # Safety net if the delete step never runs (cancelled/crashed job).
+        run: echo "at=$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           parent_branch: production
           branch_name: ci-${{ github.run_id }}
+          expires_at: ${{ steps.expiry.outputs.at }}
           api_key: ${{ secrets.NEON_API_KEY }}
       - name: Export branch env
         env:
