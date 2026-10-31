@@ -35,7 +35,7 @@ async function clientNavigate(page: Page, path: string) {
 async function fillSignUp(page: Page, name: string, email: string) {
   await page.getByLabel('Tên của bạn').fill(name)
   await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Mật khẩu').fill(PASSWORD)
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(PASSWORD)
   await page.getByRole('button', { name: 'Tạo tài khoản' }).click()
   await expect(page).toHaveURL(/\/onboarding$/)
 }
@@ -62,7 +62,7 @@ test('owner signs up, onboards, edits settings, survives reload and signs out', 
   await page.goto('/signup')
   await page.getByLabel('Tên của bạn').fill('Chủ Quán E2E')
   await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Mật khẩu').fill('E2e-Password-123')
+  await page.getByLabel('Mật khẩu', { exact: true }).fill('E2e-Password-123')
   await page.getByRole('button', { name: 'Tạo tài khoản' }).click()
 
   await expect(page).toHaveURL(/\/onboarding$/)
@@ -100,7 +100,7 @@ test('owner signs up, onboards, edits settings, survives reload and signs out', 
 test('login shows a Vietnamese error for wrong credentials', async ({ page }) => {
   await page.goto('/login')
   await page.getByLabel('Email').fill('khong-ton-tai@example.com')
-  await page.getByLabel('Mật khẩu').fill('Sai-mat-khau-1')
+  await page.getByLabel('Mật khẩu', { exact: true }).fill('Sai-mat-khau-1')
   await page.getByRole('button', { name: 'Đăng nhập' }).click()
   await expect(page.getByText('Email hoặc mật khẩu không đúng')).toBeVisible()
 })
@@ -108,7 +108,7 @@ test('login shows a Vietnamese error for wrong credentials', async ({ page }) =>
 test('login controls are at least 44px tall', async ({ page }) => {
   await page.goto('/login')
   await expectTouchTarget(page.getByLabel('Email'))
-  await expectTouchTarget(page.getByLabel('Mật khẩu'))
+  await expectTouchTarget(page.getByLabel('Mật khẩu', { exact: true }))
   await expectTouchTarget(page.getByRole('button', { name: 'Đăng nhập' }))
   await expectTouchTarget(page.getByRole('link', { name: 'Đăng ký' }))
 })

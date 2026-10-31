@@ -33,21 +33,24 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 </script>
 
 <template>
-  <main class="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 p-6">
-    <h1 class="text-2xl font-semibold">Đăng nhập</h1>
-    <UAlert v-if="errorMessage" color="error" variant="subtle" :title="errorMessage" />
-    <UForm :schema="schema" :state="state" class="flex flex-col gap-4" @submit="onSubmit">
-      <UFormField label="Email" name="email">
-        <UInput v-model="state.email" type="email" autocomplete="email" size="xl" class="w-full" />
-      </UFormField>
-      <UFormField label="Mật khẩu" name="password">
-        <UInput v-model="state.password" type="password" autocomplete="current-password" size="xl" class="w-full" />
-      </UFormField>
-      <UButton type="submit" size="xl" block :loading="loading">Đăng nhập</UButton>
+  <AppAuthShell title="Đăng nhập" description="Quản lý đơn và menu của quán bạn.">
+    <UForm :schema="schema" :state="state" class="flex flex-col gap-5" @submit="onSubmit">
+      <ZAlert v-if="errorMessage" color="error" :title="errorMessage" />
+      <ZFormField label="Email" name="email">
+        <ZInput v-model="state.email" type="email" autocomplete="email" inputmode="email" size="lg" />
+      </ZFormField>
+      <ZFormField label="Mật khẩu" name="password">
+        <ZInput v-model="state.password" type="password" autocomplete="current-password" size="lg" />
+      </ZFormField>
+      <ZButton type="submit" size="lg" block :loading="loading">
+        Đăng nhập
+      </ZButton>
     </UForm>
-    <p class="text-sm text-muted">
+    <template #footer>
       Chưa có tài khoản?
-      <ULink to="/signup" class="inline-flex min-h-11 items-center font-medium text-primary">Đăng ký</ULink>
-    </p>
-  </main>
+      <NuxtLink to="/signup" class="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline-offset-4 hover:underline">
+        Đăng ký
+      </NuxtLink>
+    </template>
+  </AppAuthShell>
 </template>
