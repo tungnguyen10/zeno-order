@@ -1,5 +1,6 @@
 import { defineEventHandler, setResponseStatus, type H3Event } from 'h3'
 import { toApiError } from './errors'
+import { logger } from './logger'
 
 export function defineApiHandler<T>(handler: (event: H3Event) => T | Promise<T>) {
   return defineEventHandler(async (event) => {
@@ -9,7 +10,7 @@ export function defineApiHandler<T>(handler: (event: H3Event) => T | Promise<T>)
     catch (err) {
       const { status, body } = toApiError(err)
       if (status >= 500) {
-        console.error('api.unhandled', event.path)
+        logger.error('api.unhandled', { requestId: event.context.requestId, path: event.path.split('?')[0], err })
       }
       setResponseStatus(event, status)
       return body
