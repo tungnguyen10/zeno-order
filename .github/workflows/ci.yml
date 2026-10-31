@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run build
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: checks
+    env:
+      ZENO_TEST_DB: '1'
+      APP_BASE_URL: http://localhost:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          parent_branch: production
+          branch_name: ci-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+      - name: Export branch env
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          CI_BRANCH: ci-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          npx -y neon@8.4.1 env pull --project-id "$NEON_PROJECT_ID" --branch "$CI_BRANCH" --file .env.ci
+          while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in ''|'#'*) continue ;; esac
+            key="${line%%=*}"
+            value="${line#*=}"
+            value="${value#\"}"
+            value="${value%\"}"
+            case "$key" in
+              DATABASE_URL|DATABASE_URL_UNPOOLED|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY) echo "::add-mask::$value" ;;
+            esac
+            if [ "$key" = NEON_BRANCH ] && [ "$value" != "$CI_BRANCH" ]; then
+              echo "NEON_BRANCH mismatch: expected $CI_BRANCH" >&2
+              exit 1
+            fi
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done < .env.ci
+          rm -f .env.ci
+      - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit migrate
+      - run: npx vitest run --project integration
+      - run: npx vitest run --project api
+      - if: always()
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: ci-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
