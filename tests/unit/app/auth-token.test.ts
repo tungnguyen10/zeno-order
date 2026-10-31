@@ -55,4 +55,18 @@ describe('createTokenCache', () => {
     cache.clear()
     expect(await cache.get()).not.toBeNull()
   })
+
+  it('drops an in-flight token when clear() is called before it resolves', async () => {
+    let resolveFirst!: (value: { data: { token: string } }) => void
+    const token = vi.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+      .mockResolvedValueOnce({ data: null })
+    const cache = createTokenCache({ token }, () => 1000)
+    const pending = cache.get()
+    cache.clear()
+    resolveFirst({ data: { token: fakeJwt(5000) } })
+    expect(await pending).toBeNull()
+    expect(await cache.get()).toBeNull()
+    expect(token).toHaveBeenCalledTimes(2)
+  })
 })

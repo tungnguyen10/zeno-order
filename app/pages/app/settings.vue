@@ -12,7 +12,10 @@ const { load } = useMe()
 
 const { data: store, status, refresh } = await useAsyncData(
   'store-settings',
-  () => api<StoreDetail>(`/api/stores/${activeStore.value!.id}`),
+  async () => {
+    const id = activeStore.value?.id
+    return id ? await api<StoreDetail>(`/api/stores/${id}`) : null
+  },
   { watch: [() => activeStore.value?.id] },
 )
 
@@ -54,7 +57,13 @@ async function save() {
         <UInput v-model="draft.name" :disabled="!isOwner" size="xl" class="w-full" />
       </UFormField>
 
-      <USwitch v-model="draft.isAcceptingOrders" :disabled="!isOwner" label="Đang nhận đơn" description="Tắt khi quán tạm nghỉ; khách vẫn xem được menu." />
+      <USwitch
+        v-model="draft.isAcceptingOrders"
+        :disabled="!isOwner"
+        size="lg"
+        label="Đang nhận đơn"
+        description="Tắt khi quán tạm nghỉ; khách vẫn xem được menu."
+      />
 
       <UFormField label="Link đặt món">
         <UInput :model-value="publicUrl" readonly size="xl" class="w-full" />

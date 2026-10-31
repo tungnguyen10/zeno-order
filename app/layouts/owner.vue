@@ -19,6 +19,9 @@ async function onSignOut() {
   try {
     await signOut()
   }
+  catch {
+    // Local session state is already cleared by signOut(); nothing else to recover.
+  }
   finally {
     await navigateTo('/login')
   }

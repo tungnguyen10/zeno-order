@@ -24,22 +24,30 @@ interface TokenSource {
 export function createTokenCache(source: TokenSource, now: () => number = () => Math.floor(Date.now() / 1000)) {
   let current: string | null = null
   let inflight: Promise<string | null> | null = null
+  // Bumped by clear() so a fetch started before sign-out/sign-in cannot repopulate the cache.
+  let generation = 0
 
   async function get(): Promise<string | null> {
     if (current && isTokenFresh(current, now())) return current
-    inflight ??= source.token()
+    if (inflight) return inflight
+    const startedAt = generation
+    const request: Promise<string | null> = source.token()
       .then((result) => {
+        if (startedAt !== generation) return null
         current = result.data?.token ?? null
         return current
       })
       .finally(() => {
-        inflight = null
+        if (inflight === request) inflight = null
       })
-    return inflight
+    inflight = request
+    return request
   }
 
   function clear(): void {
+    generation++
     current = null
+    inflight = null
   }
 
   return { get, clear }
