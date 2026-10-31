@@ -46,7 +46,7 @@ async function save() {
   <section class="flex flex-col gap-6">
     <h1 class="text-xl font-semibold">Cài đặt cửa hàng</h1>
 
-    <USkeleton v-if="status === 'pending'" class="h-40 w-full" />
+    <USkeleton v-if="status === 'pending' && !store" class="h-40 w-full" />
     <UAlert v-else-if="status === 'error'" color="error" variant="subtle" title="Không tải được cài đặt" />
 
     <template v-else-if="store">

@@ -50,7 +50,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     </UForm>
     <p class="text-sm text-muted">
       Đã có tài khoản?
-      <ULink to="/login" class="font-medium text-primary">Đăng nhập</ULink>
+      <ULink to="/login" class="inline-flex min-h-11 items-center font-medium text-primary">Đăng nhập</ULink>
     </p>
   </main>
 </template>

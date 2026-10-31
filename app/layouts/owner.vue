@@ -16,8 +16,12 @@ const navItems = [
 ]
 
 async function onSignOut() {
-  await signOut()
-  await navigateTo('/login')
+  try {
+    await signOut()
+  }
+  finally {
+    await navigateTo('/login')
+  }
 }
 </script>
 
@@ -30,6 +34,7 @@ async function onSignOut() {
           v-model="selectedStoreId"
           :items="storeItems"
           aria-label="Chọn cửa hàng"
+          size="lg"
           class="w-full max-w-60"
         />
         <p v-else data-testid="active-store-name" class="truncate font-semibold">
@@ -37,7 +42,7 @@ async function onSignOut() {
         </p>
         <span v-if="storeItems.length > 1" data-testid="active-store-name" class="sr-only">{{ activeStore?.name }}</span>
       </div>
-      <UButton variant="ghost" color="neutral" icon="i-lucide-log-out" @click="onSignOut">
+      <UButton variant="ghost" color="neutral" size="lg" icon="i-lucide-log-out" @click="onSignOut">
         Đăng xuất
       </UButton>
     </header>

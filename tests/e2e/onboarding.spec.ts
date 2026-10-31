@@ -1,4 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
+
+async function expectTouchTarget(locator: Locator) {
+  await expect(locator).toBeVisible()
+  const box = await locator.boundingBox()
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
+}
 
 test('visitor is redirected to login with a return path', async ({ page }) => {
   await page.goto('/app/settings')
@@ -39,6 +45,7 @@ test('owner signs up, onboards, edits settings, survives reload and signs out', 
   await page.reload()
   await expect(page.getByRole('switch', { name: 'Đang nhận đơn' })).toBeChecked()
 
+  await expectTouchTarget(page.getByRole('button', { name: 'Đăng xuất' }))
   await page.getByRole('button', { name: 'Đăng xuất' }).click()
   await expect(page).toHaveURL(/\/login/)
   await page.goto('/app/orders')
@@ -51,4 +58,12 @@ test('login shows a Vietnamese error for wrong credentials', async ({ page }) =>
   await page.getByLabel('Mật khẩu').fill('Sai-mat-khau-1')
   await page.getByRole('button', { name: 'Đăng nhập' }).click()
   await expect(page.getByText('Email hoặc mật khẩu không đúng')).toBeVisible()
+})
+
+test('login controls are at least 44px tall', async ({ page }) => {
+  await page.goto('/login')
+  await expectTouchTarget(page.getByLabel('Email'))
+  await expectTouchTarget(page.getByLabel('Mật khẩu'))
+  await expectTouchTarget(page.getByRole('button', { name: 'Đăng nhập' }))
+  await expectTouchTarget(page.getByRole('link', { name: 'Đăng ký' }))
 })
