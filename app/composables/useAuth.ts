@@ -5,14 +5,15 @@ export interface SessionUser {
 }
 
 export function useAuth() {
-  const { $authClient, $tokenCache } = useNuxtApp()
+  const { $getAuthClient, $tokenCache } = useNuxtApp()
   const user = useState<SessionUser | null>('auth:user', () => null)
   const ready = useState<boolean>('auth:ready', () => false)
 
   // @neon/auth only refreshes its session cache from responses that carry `session`; email sign-in/up
   // responses don't, so after switching accounts the cache must be bypassed or it keeps the old user.
   async function refresh(force = false): Promise<SessionUser | null> {
-    const { data } = await $authClient.getSession(force ? { fetchOptions: { headers: { 'X-Force-Fetch': 'true' } } } : undefined)
+    const authClient = await $getAuthClient()
+    const { data } = await authClient.getSession(force ? { fetchOptions: { headers: { 'X-Force-Fetch': 'true' } } } : undefined)
     user.value = data?.user
       ? { id: data.user.id, email: data.user.email, name: data.user.name ?? null }
       : null
@@ -28,20 +29,22 @@ export function useAuth() {
   }
 
   async function signIn(email: string, password: string): Promise<void> {
-    await runAuthAction(() => $authClient.signIn.email({ email, password }))
+    const authClient = await $getAuthClient()
+    await runAuthAction(() => authClient.signIn.email({ email, password }))
     clearLocalSession()
     await refresh(true)
   }
 
   async function signUp(name: string, email: string, password: string): Promise<void> {
-    await runAuthAction(() => $authClient.signUp.email({ name, email, password }))
+    const authClient = await $getAuthClient()
+    await runAuthAction(() => authClient.signUp.email({ name, email, password }))
     clearLocalSession()
     await refresh(true)
   }
 
   async function signOut(): Promise<void> {
     try {
-      await $authClient.signOut()
+      await (await $getAuthClient()).signOut()
     }
     finally {
       clearLocalSession()
