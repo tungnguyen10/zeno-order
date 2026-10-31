@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const model = defineModel<string | number | null | undefined>()
+const model = defineModel<string | number | undefined>()
 
 const props = withDefaults(defineProps<{
   type?: 'text' | 'email' | 'password' | 'tel' | 'url' | 'search' | 'number'

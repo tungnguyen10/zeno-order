@@ -10,4 +10,10 @@ export default withNuxt({
       message: 'Use the Z* primitives (app/components/z) instead of Nuxt UI components in pages and layouts.',
     }],
   },
+}, {
+  files: ['app/components/**/*.vue'],
+  rules: {
+    // Optional TS-typed props are intentionally undefined; defaults would only add noise.
+    'vue/require-default-prop': 'off',
+  },
 })
