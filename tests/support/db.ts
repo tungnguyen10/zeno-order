@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { getDb } from '../../server/db/client'
+import { assertTestDatabase } from './test-env'
 
 export async function resetDb(): Promise<void> {
+  assertTestDatabase()
   const db = getDb()
   const { rows } = await db.execute<{ tablename: string }>(
     sql`select tablename from pg_tables where schemaname = 'public'`,

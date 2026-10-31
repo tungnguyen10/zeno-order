@@ -1,8 +1,10 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { parseEnv } from 'node:util'
 import { defineConfig } from 'drizzle-kit'
 
 const envFile = process.env.ENV_FILE ?? '.env'
-if (existsSync(envFile)) process.loadEnvFile(envFile)
+// Override semantics: the file wins over variables already exported in the shell.
+if (existsSync(envFile)) Object.assign(process.env, parseEnv(readFileSync(envFile, 'utf8')))
 
 const url = process.env.DATABASE_URL_UNPOOLED
 if (!url) throw new Error(`DATABASE_URL_UNPOOLED missing (env file: ${envFile})`)
