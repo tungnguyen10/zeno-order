@@ -19,17 +19,17 @@
       "skillPath": "skills/pinia/SKILL.md",
       "computedHash": "897b6b0982956f41f5cc85128ca638b625e1b3c8bc619e303cd1e7661c95b7de"
     },
-    "supabase": {
-      "source": "supabase/agent-skills",
+    "neon": {
+      "source": "neondatabase/agent-skills",
       "sourceType": "github",
-      "skillPath": "skills/supabase/SKILL.md",
-      "computedHash": "583344c20e90f3654dbb0632f088d89fd9f1dde8ac85e8a644dd12eee59b1380"
+      "skillPath": "skills/neon/SKILL.md",
+      "computedHash": "e3d7835b2a6443f52972c033b267fa12467f5d9d19cfad4f102969d05c14434f"
     },
-    "supabase-postgres-best-practices": {
-      "source": "supabase/agent-skills",
+    "neon-postgres": {
+      "source": "neondatabase/agent-skills",
       "sourceType": "github",
-      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
-      "computedHash": "e14e276241805c97dbcfe40dcbea1a3035269cc7293cac4b1832dda41a835e60"
+      "skillPath": "skills/neon-postgres/SKILL.md",
+      "computedHash": "83d3c75651bd81f06e5e8c47ffc306936cc4d2a1ac84d288e8f6a15fcfb724b4"
     },
     "vue": {
       "source": "antfu/skills",
