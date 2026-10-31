@@ -1,5 +1,0 @@
-<template>
-  <NuxtRouteAnnouncer />
-  <NuxtPage />
-</template>
-

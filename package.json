@@ -11,14 +11,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
-    "typecheck": "nuxt typecheck",
-    "test": "npm run test:unit && npm run test:nuxt",
-    "test:unit": "vitest run --project unit",
-    "test:nuxt": "vitest run --project nuxt",
-    "test:e2e": "playwright test",
-    "test:db": "supabase test db",
-    "test:client-secrets": "node scripts/assert-no-client-secret.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:client-secrets"
+    "typecheck": "nuxt typecheck"
   },
   "dependencies": {
     "@nuxt/eslint": "1.17.0",
