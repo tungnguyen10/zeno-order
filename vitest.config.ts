@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { defineVitestProject } from '@nuxt/test-utils/config'
 import { defineConfig } from 'vitest/config'
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url))
@@ -43,6 +44,14 @@ export default defineConfig({
           hookTimeout: 300_000,
         },
       },
+      await defineVitestProject({
+        test: {
+          name: 'nuxt',
+          include: ['tests/nuxt/**/*.test.ts'],
+          environment: 'nuxt',
+          environmentOptions: { nuxt: { domEnvironment: 'happy-dom' } },
+        },
+      }),
     ],
   },
 })
