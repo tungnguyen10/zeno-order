@@ -40,6 +40,11 @@ describe('safeRedirect', () => {
     ['//evil.com', '/app'],
     ['/\\evil.com', '/app'],
     ['https://evil.com', '/app'],
+    ['/\t/evil.com', '/app'],
+    ['/\n/evil.com', '/app'],
+    ['/app orders', '/app'],
+    ['/\u0000/evil.com', '/app'],
+    ['/app/orders?tab=new#top', '/app/orders?tab=new#top'],
     [undefined, '/app'],
     [['/a', '/b'], '/app'],
   ])('%s → %s', (input, expected) => {
