@@ -19,9 +19,14 @@ const notFound = () => new AppError('NOT_FOUND', 'Không tìm thấy')
 const MAX_TOKEN_LENGTH = 200
 
 export function nextTableCode(existing: string[]): string {
-  const numeric = existing.filter(code => /^\d+$/.test(code)).map(Number)
-  const next = numeric.length === 0 ? 1 : Math.max(...numeric) + 1
-  return String(next).padStart(2, '0')
+  const largest = existing.reduce((maximum, code) => {
+    if (!/^\d+$/.test(code)) return maximum
+    const value = BigInt(code)
+    return value > maximum ? value : maximum
+  }, 0n)
+  const next = String(largest + 1n)
+  if (next.length > 20) throw new AppError('VALIDATION_FAILED', 'Không thể tạo thêm mã bàn tự động')
+  return next.padStart(2, '0')
 }
 
 export function buildTableQrUrl(baseUrl: string, slug: string, token: string): string {

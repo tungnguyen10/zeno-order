@@ -8,9 +8,14 @@ describe('nextTableCode', () => {
     [['01', '02'], '03'],
     [['A1', '07'], '08'],
     [['99'], '100'],
+    [['9007199254740993'], '9007199254740994'],
     [['abc', 'T-1'], '01'],
   ])('%j → %s', (existing, expected) => {
     expect(nextTableCode(existing)).toBe(expected)
+  })
+
+  it('rejects automatic numbering when the next code would exceed 20 digits', () => {
+    expect(() => nextTableCode(['99999999999999999999'])).toThrowError('Không thể tạo thêm mã bàn tự động')
   })
 })
 
