@@ -7,7 +7,7 @@ import { closeDb, getDb } from '../../server/db/client'
 import { stores } from '../../server/db/schema'
 import { createTestAuth } from '../support/auth'
 import { resetDb } from '../support/db'
-import { addStaff, createStore, createTenant, createUser } from '../support/fixtures'
+import { addStaff, createCategory, createProduct, createStore, createTable, createTenant, createUser, createZone } from '../support/fixtures'
 
 const auth = await createTestAuth()
 process.env.AUTH_TEST_JWKS = auth.jwksJson
@@ -21,7 +21,21 @@ await setup({
 
 type Actor = 'ownerA' | 'staffA1' | 'staffA2' | 'disabledA1' | 'ownerB'
 const tokens = {} as Record<Actor, string>
-const ids = {} as { orgA: string, storeA1: string, storeA2: string, storeB: string, storeA1Slug: string }
+const ids = {} as {
+  orgA: string
+  storeA1: string
+  storeA2: string
+  storeB: string
+  storeA1Slug: string
+  categoryA1: string
+  categoryA2: string
+  categoryB: string
+  productA1: string
+  productA2: string
+  productB: string
+  tableA1: string
+  zoneA1: string
+}
 
 async function call(method: string, path: string, token?: string | null, body?: unknown) {
   const headers: Record<string, string> = {}
@@ -52,7 +66,30 @@ beforeAll(async () => {
   const staffA2 = await addStaff(storeA2)
   const disabledA1 = await addStaff(a.store, { status: 'DISABLED' })
 
-  Object.assign(ids, { orgA: a.org.id, storeA1: a.store.id, storeA2: storeA2.id, storeB: b.store.id, storeA1Slug: a.store.slug })
+  const categoryA1 = await createCategory(a.store, 'Trà A1')
+  const categoryA2 = await createCategory(storeA2, 'Trà A2')
+  const categoryB = await createCategory(b.store, 'Trà B')
+  const productA1 = await createProduct(a.store, { name: 'Món A1', categoryId: categoryA1.id })
+  const productA2 = await createProduct(storeA2, { name: 'Món A2' })
+  const productB = await createProduct(b.store, { name: 'Món B' })
+  const tableA1 = await createTable(a.store, '01')
+  const zoneA1 = await createZone(a.store, { name: 'Zone A1' })
+
+  Object.assign(ids, {
+    orgA: a.org.id,
+    storeA1: a.store.id,
+    storeA2: storeA2.id,
+    storeB: b.store.id,
+    storeA1Slug: a.store.slug,
+    categoryA1: categoryA1.id,
+    categoryA2: categoryA2.id,
+    categoryB: categoryB.id,
+    productA1: productA1.id,
+    productA2: productA2.id,
+    productB: productB.id,
+    tableA1: tableA1.table.id,
+    zoneA1: zoneA1.id,
+  })
   const sign = (user: { userId: string, email: string }) => auth.sign({ sub: user.userId, email: user.email })
   tokens.ownerA = await sign(a.owner)
   tokens.staffA1 = await sign(staffA1)
@@ -206,5 +243,66 @@ describe('POST /api/organizations', () => {
     const token = await auth.sign({ sub: user.userId, email: user.email })
     const res = await call('POST', '/api/organizations', token, '{"orgName":')
     expect(res).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+})
+
+describe('categories', () => {
+  it.each<[Actor, number]>([
+    ['ownerA', 200],
+    ['staffA1', 200],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('GET /categories %s → %i', async (actor, status) => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/categories`, tokens[actor])
+    expect(res.status).toBe(status)
+    if (status === 200) {
+      const listed = (res.body.categories as { id: string }[]).map(c => c.id)
+      expect(listed).toContain(ids.categoryA1)
+      expect(listed).not.toContain(ids.categoryA2)
+      expect(listed).not.toContain(ids.categoryB)
+    }
+    else {
+      expect(res.body).toMatchObject({ code: errorCodes[status] })
+    }
+  })
+
+  it.each<[Actor, number]>([
+    ['ownerA', 201],
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('POST /categories %s → %i', async (actor, status) => {
+    const res = await call('POST', `/api/stores/${ids.storeA1}/categories`, tokens[actor], { name: `Mới ${actor}` })
+    expect(res.status).toBe(status)
+    if (status !== 201) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it.each<[Actor, number]>([
+    ['ownerA', 200],
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('PATCH /categories/:id %s → %i', async (actor, status) => {
+    const res = await call('PATCH', `/api/stores/${ids.storeA1}/categories/${ids.categoryA1}`, tokens[actor], { active: true })
+    expect(res.status).toBe(status)
+    if (status !== 200) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it('a category of another store is 404 even for the owner of both orgs\' stores', async () => {
+    expect(await call('PATCH', `/api/stores/${ids.storeA1}/categories/${ids.categoryA2}`, tokens.ownerA, { name: 'Hijack' }))
+      .toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    expect(await call('PATCH', `/api/stores/${ids.storeB}/categories/${ids.categoryA1}`, tokens.ownerB, { name: 'Hijack' }))
+      .toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    const own = await call('GET', `/api/stores/${ids.storeA2}/categories`, tokens.ownerA)
+    expect((own.body.categories as { id: string, name: string }[]).find(c => c.id === ids.categoryA2)!.name).toBe('Trà A2')
+  })
+
+  it('treats a non-uuid category id as 404 and validates the body', async () => {
+    expect(await call('PATCH', `/api/stores/${ids.storeA1}/categories/xyz`, tokens.ownerA, { active: true })).toMatchObject({ status: 404 })
+    expect(await call('POST', `/api/stores/${ids.storeA1}/categories`, tokens.ownerA, { name: '   ' })).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    expect(await call('PATCH', `/api/stores/${ids.storeA1}/categories/${ids.categoryA1}`, tokens.ownerA, {})).toMatchObject({ status: 400 })
   })
 })
