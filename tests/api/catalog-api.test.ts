@@ -103,6 +103,60 @@ describe('GET /api/public/stores/:slug/menu', () => {
   })
 })
 
+describe('GET /api/public/stores/:slug/fulfillment', () => {
+  const url = (query = '') => `/api/public/stores/${seed.slug}/fulfillment${query}`
+  const tokenOf = (qrUrl: string) => new URL(qrUrl).searchParams.get('t')!
+
+  it('is never cached, has no table without ?t= and leaks nothing', async () => {
+    const res = await call('GET', url())
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(res.body).toMatchObject({ table: null, tableError: null, modes: { dineIn: true, pickup: true } })
+    expect(findForbiddenKeys(res.body)).toEqual([])
+    expect(JSON.stringify(res.body)).not.toContain(seed.orgId)
+  })
+
+  it('binds a valid QR to its table, and the old QR dies right after regenerate', async () => {
+    const created = await call('POST', `/api/stores/${seed.storeId}/tables`, seed.ownerToken, { code: 'F1', displayName: 'Bàn 05' })
+    expect(created.status).toBe(201)
+    const oldToken = tokenOf(created.body.qrUrl)
+    expect((await call('GET', url(`?t=${oldToken}`))).body).toMatchObject({ table: { displayName: 'Bàn 05' }, tableError: null })
+
+    const renewed = await call('POST', `/api/stores/${seed.storeId}/tables/${created.body.id}/regenerate`, seed.ownerToken)
+    expect(renewed.status).toBe(200)
+    expect((await call('GET', url(`?t=${oldToken}`))).body).toMatchObject({ table: null, tableError: 'INVALID_TABLE' })
+    expect((await call('GET', url(`?t=${tokenOf(renewed.body.qrUrl)}`))).body).toMatchObject({ table: { displayName: 'Bàn 05' }, tableError: null })
+
+    await call('PATCH', `/api/stores/${seed.storeId}/tables/${created.body.id}`, seed.ownerToken, { active: false })
+    expect((await call('GET', url(`?t=${tokenOf(renewed.body.qrUrl)}`))).body).toMatchObject({ tableError: 'INVALID_TABLE' })
+  })
+
+  it.each([['empty', '?t='], ['repeated', '?t=a&t=b'], ['garbage', '?t=khong-phai-qr'], ['too long', `?t=${'x'.repeat(500)}`]])(
+    'reports INVALID_TABLE for a %s token',
+    async (_label, query) => {
+      const res = await call('GET', url(query))
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({ table: null, tableError: 'INVALID_TABLE' })
+    },
+  )
+
+  it('keeps delivery unavailable until an active zone exists, then lists only that zone', async () => {
+    await call('PATCH', `/api/stores/${seed.storeId}/fulfillment`, seed.ownerToken, { deliveryEnabled: true })
+    expect((await call('GET', url())).body.modes.delivery).toEqual({ enabled: true, available: false })
+    expect((await call('GET', `/api/public/stores/${seed.slug}/menu`)).body.modes.delivery).toEqual({ enabled: true, available: false })
+
+    const zone = await call('POST', `/api/stores/${seed.storeId}/delivery-zones`, seed.ownerToken, { name: 'Quận 1', feeVnd: 15000 })
+    expect(zone.status).toBe(201)
+    const res = await call('GET', url())
+    expect(res.body.modes.delivery).toEqual({ enabled: true, available: true })
+    expect(res.body.deliveryZones).toEqual([{ id: zone.body.id, name: 'Quận 1', feeVnd: 15000 }])
+  })
+
+  it.each([['unknown', 'khong-ton-tai'], ['500 characters', 'a'.repeat(500)]])('returns 404 for a %s slug', async (_label, slug) => {
+    expect(await call('GET', `/api/public/stores/${slug}/fulfillment`)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+  })
+})
+
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64',
