@@ -1,6 +1,7 @@
 {
     "dotenv.enableAutocloaking": false,
     "chat.tools.terminal.autoApprove": {
-        "npx skills": true
+        "npx skills": true,
+        "neon": true
     }
 }

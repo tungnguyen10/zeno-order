@@ -16,12 +16,14 @@
 |---|---|---|---|
 | 0 | `chore(foundation)` | [2026-10-31-zeno-v1-01-foundation.md](./2026-10-31-zeno-v1-01-foundation.md) | **Chi tiết, sẵn sàng thực thi** |
 | 1 | `feat(core)` | [2026-10-31-zeno-v1-02-core-auth-tenancy.md](./2026-10-31-zeno-v1-02-core-auth-tenancy.md) | **Chi tiết, sẵn sàng thực thi** |
-| 2 | `feat(catalog)` | `2026-10-31-zeno-v1-03-catalog.md` | Outline bên dưới, viết chi tiết khi PR1 merge |
-| 3 | `feat(order)` | `2026-10-31-zeno-v1-04-ordering.md` | Outline, viết khi PR2 merge |
-| 4 | `feat(owner)` | `2026-10-31-zeno-v1-05-owner-ops.md` | Outline, viết khi PR3 merge |
-| 5 | `feat(payment-setup)` | `2026-10-31-zeno-v1-06-payment-setup.md` | Outline, viết khi PR4 merge |
-| 6 | `feat(payment-webhook)` | `2026-10-31-zeno-v1-07-payment-webhook.md` | Outline, viết khi PR5 merge |
-| 7 | `test(hardening)` | `2026-10-31-zeno-v1-08-hardening.md` | Outline, viết khi PR6 merge |
+| 2 | `feat(catalog)` | [2026-10-31-zeno-v1-03-catalog.md](./2026-10-31-zeno-v1-03-catalog.md) | **Chi tiết (19 task)**, viết trước khi PR1 merge |
+| 3 | `feat(order)` | [2026-10-31-zeno-v1-04-ordering.md](./2026-10-31-zeno-v1-04-ordering.md) | **Chi tiết (12 task)**, viết trước khi PR2 merge |
+| 4 | `feat(owner)` | [2026-10-31-zeno-v1-05-owner-ops.md](./2026-10-31-zeno-v1-05-owner-ops.md) | **Chi tiết (11 task)**, viết trước khi PR3 merge |
+| 5 | `feat(payment-setup)` | [2026-10-31-zeno-v1-06-payment-setup.md](./2026-10-31-zeno-v1-06-payment-setup.md) | **Chi tiết (13 task)**; có mục "Verified external facts" SePay/VietQR, các mục UNVERIFIED có gate |
+| 6 | `feat(payment-webhook)` | [2026-10-31-zeno-v1-07-payment-webhook.md](./2026-10-31-zeno-v1-07-payment-webhook.md) | **Chi tiết (12 task)**; gate UNVERIFIED ở Task 0 |
+| 7 | `test(hardening)` | [2026-10-31-zeno-v1-08-hardening.md](./2026-10-31-zeno-v1-08-hardening.md) | **Chi tiết (16 task)** |
+
+> **Lưu ý khi thực thi:** PR2–PR7 được viết trước khi PR liền trước tồn tại, nên các điểm chèn vào code của PR trước dùng mốc + bước "Step 0 grep" để đối chiếu tên thật. Khi một PR merge, đọc lại phần Consumes của plan kế tiếp và sửa plan nếu tên thật lệch. Các plan thanh toán (PR5–PR6) còn mục UNVERIFIED về SePay phải được kiểm chứng trước khi code.
 
 **Vì sao PR2–7 viết sau:** mỗi PR dùng interface thật của PR trước (tên hàm, kiểu, fixture, constraint name), và PR5–6 phụ thuộc tài liệu SePay phải xác minh trực tiếp (spec §13). Nếu viết code chi tiết ngay bây giờ thì phần lớn sẽ là phỏng đoán. Phần outline dưới đây đã chốt phạm vi, file, interface và test case bắt buộc. Plan chi tiết của từng PR phải tuân theo outline; muốn lệch thì cập nhật outline trước.
 
