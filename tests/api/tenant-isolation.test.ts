@@ -435,3 +435,40 @@ describe('PUT /products/:id/options', () => {
       .toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
   })
 })
+
+describe('fulfillment settings', () => {
+  it.each<[Actor, number]>([['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404], ['ownerA', 200]])('PATCH /fulfillment %s → %i', async (actor, status) => {
+    const res = await call('PATCH', `/api/stores/${ids.storeA1}/fulfillment`, tokens[actor], { pickupEnabled: true })
+    expect(res.status).toBe(status)
+    if (status !== 200) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+  it('refuses to turn every mode off with 400 and keeps the previous state', async () => {
+    const res = await call('PATCH', `/api/stores/${ids.storeA1}/fulfillment`, tokens.ownerA, { dineInEnabled: false, pickupEnabled: false, deliveryEnabled: false })
+    expect(res).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    const store = await call('GET', `/api/stores/${ids.storeA1}`, tokens.ownerA)
+    expect([store.body.dineInEnabled, store.body.pickupEnabled, store.body.deliveryEnabled].some(Boolean)).toBe(true)
+  })
+})
+
+describe('delivery zones', () => {
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 200], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])('GET /delivery-zones %s → %i', async (actor, status) => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/delivery-zones`, tokens[actor])
+    expect(res.status).toBe(status)
+    if (status === 200) expect((res.body.zones as { id: string }[]).map(z => z.id)).toEqual([ids.zoneA1])
+    else expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+  it.each<[Actor, number]>([['ownerA', 201], ['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])('POST /delivery-zones %s → %i', async (actor, status) => {
+    const res = await call('POST', `/api/stores/${ids.storeA1}/delivery-zones`, tokens[actor], { name: `Khu ${actor}`, feeVnd: 12000 })
+    expect(res.status).toBe(status)
+    if (status !== 201) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])('PATCH /delivery-zones/:id %s → %i', async (actor, status) => {
+    const res = await call('PATCH', `/api/stores/${ids.storeA1}/delivery-zones/${ids.zoneA1}`, tokens[actor], { feeVnd: 18000 })
+    expect(res.status).toBe(status)
+    if (status !== 200) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+  it('a zone of another store is 404 and a negative fee is 400', async () => {
+    expect(await call('PATCH', `/api/stores/${ids.storeA2}/delivery-zones/${ids.zoneA1}`, tokens.ownerA, { feeVnd: 1 })).toMatchObject({ status: 404 })
+    expect(await call('PATCH', `/api/stores/${ids.storeA1}/delivery-zones/${ids.zoneA1}`, tokens.ownerA, { feeVnd: -1 })).toMatchObject({ status: 400 })
+  })
+})

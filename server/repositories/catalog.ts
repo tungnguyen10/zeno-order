@@ -52,6 +52,14 @@ export async function listOptionValueRows(db: DbOrTx, scope: CatalogScope, group
     .orderBy(asc(productOptionValues.position), asc(productOptionValues.createdAt), asc(productOptionValues.id))
 }
 
+export async function listZoneRows(db: DbOrTx, scope: CatalogScope, opts: { activeOnly?: boolean } = {}) {
+  return db
+    .select()
+    .from(deliveryZones)
+    .where(and(inStore(deliveryZones, scope), opts.activeOnly ? eq(deliveryZones.active, true) : undefined))
+    .orderBy(asc(deliveryZones.position), asc(deliveryZones.createdAt), asc(deliveryZones.id))
+}
+
 export async function countActiveZones(db: DbOrTx, scope: CatalogScope): Promise<number> {
   const [row] = await db
     .select({ total: count() })
