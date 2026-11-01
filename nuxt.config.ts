@@ -1,6 +1,6 @@
 export default defineNuxtConfig({
   $env: {
-    e2e: { buildDir: '.cache/nuxt-e2e' },
+    e2e: { buildDir: '.cache/nuxt-e2e', devtools: { enabled: false } },
   },
   compatibilityDate: '2026-09-14',
   devtools: { enabled: true },

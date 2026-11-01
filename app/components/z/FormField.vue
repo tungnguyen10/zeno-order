@@ -6,6 +6,7 @@ defineProps<{
   help?: string
   description?: string
   required?: boolean
+  error?: string
 }>()
 
 const slots = defineSlots<{ default?: () => unknown, help?: () => unknown, hint?: () => unknown }>()
@@ -22,7 +23,7 @@ const ui = {
 </script>
 
 <template>
-  <UFormField :label="label" :name="name" :hint="hint" :help="help" :description="description" :required="required" :ui="ui">
+  <UFormField :label="label" :name="name" :hint="hint" :help="help" :description="description" :required="required" :error="error || undefined" :ui="ui">
     <slot />
     <template v-if="slots.help" #help>
       <slot name="help" />

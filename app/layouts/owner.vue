@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const navItems = [
   { label: 'Đơn hàng', to: '/app/orders', icon: 'i-lucide-receipt' },
+  { label: 'Thực đơn', to: '/app/menu', icon: 'i-lucide-utensils-crossed' },
   { label: 'Cài đặt', to: '/app/settings', icon: 'i-lucide-settings' },
 ]
 </script>
