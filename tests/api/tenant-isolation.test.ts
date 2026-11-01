@@ -387,3 +387,51 @@ describe('products', () => {
     expect(created.body).not.toHaveProperty('orgId')
   })
 })
+
+describe('PUT /products/:id/options', () => {
+  const body = { groups: [{ name: 'Size', required: true, minSelect: 1, maxSelect: 1, values: [{ name: 'M' }, { name: 'L', priceDeltaVnd: 5000 }] }] }
+
+  it.each<[Actor, number]>([
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+    ['ownerA', 200],
+  ])('%s → %i', async (actor, status) => {
+    const before = await call('GET', `/api/stores/${ids.storeA1}/products`, tokens.ownerA)
+    const res = await call('PUT', `/api/stores/${ids.storeA1}/products/${ids.productA1}/options`, tokens[actor], body)
+    expect(res.status).toBe(status)
+    if (status === 200) expect(res.body.optionGroups[0]).toMatchObject({ name: 'Size', required: true, minSelect: 1 })
+    else {
+      expect(res.body).toMatchObject({ code: errorCodes[status] })
+      expect(await call('GET', `/api/stores/${ids.storeA1}/products`, tokens.ownerA)).toEqual(before)
+    }
+  })
+
+  it('staff can read the options saved by the owner', async () => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/products`, tokens.staffA1)
+    expect(res.status).toBe(200)
+    expect((res.body.products as { id: string, optionGroups: unknown[] }[]).find(p => p.id === ids.productA1)!.optionGroups[0])
+      .toMatchObject({ name: 'Size', required: true, values: [{ name: 'M', priceDeltaVnd: 0 }, { name: 'L', priceDeltaVnd: 5000 }] })
+  })
+
+  it('returns 404 for missing and malformed product ids and requires authentication', async () => {
+    for (const productId of [randomUUID(), 'not-a-uuid']) {
+      expect(await call('PUT', `/api/stores/${ids.storeA1}/products/${productId}/options`, tokens.ownerA, body))
+        .toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    }
+    expect(await call('PUT', `/api/stores/${ids.storeA1}/products/${ids.productA1}/options`, null, body))
+      .toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+  })
+
+  it('cannot replace the options of a product that belongs to another store', async () => {
+    expect(await call('PUT', `/api/stores/${ids.storeA1}/products/${ids.productA2}/options`, tokens.ownerA, body)).toMatchObject({ status: 404 })
+    expect(await call('PUT', `/api/stores/${ids.storeB}/products/${ids.productA1}/options`, tokens.ownerB, body)).toMatchObject({ status: 404 })
+  })
+
+  it('rejects inconsistent groups with 400', async () => {
+    const bad = { groups: [{ name: 'Topping', required: false, minSelect: 3, maxSelect: 2, values: [{ name: 'a' }, { name: 'b' }, { name: 'c' }] }] }
+    expect(await call('PUT', `/api/stores/${ids.storeA1}/products/${ids.productA1}/options`, tokens.ownerA, bad))
+      .toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+})
