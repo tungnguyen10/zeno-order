@@ -306,3 +306,84 @@ describe('categories', () => {
     expect(await call('PATCH', `/api/stores/${ids.storeA1}/categories/${ids.categoryA1}`, tokens.ownerA, {})).toMatchObject({ status: 400 })
   })
 })
+
+describe('products', () => {
+  it('rejects malformed product ids and invalid patches', async () => {
+    expect(await call('PATCH', `/api/stores/${ids.storeA1}/products/not-a-uuid`, tokens.ownerA, { active: true }))
+      .toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    for (const body of [{}, { orgId: ids.orgA }, { basePriceVnd: -1 }, { name: ' ' }, { isAvailable: 'false' }, { categoryId: 'bad-id' }]) {
+      expect(await call('PATCH', `/api/stores/${ids.storeA1}/products/${ids.productA1}`, tokens.ownerA, body))
+        .toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    }
+    expect(await call('POST', `/api/stores/${ids.storeA1}/products`, tokens.ownerA, '{"name":'))
+      .toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+
+  it.each<[Actor, number]>([
+    ['ownerA', 200],
+    ['staffA1', 200],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('GET /products %s → %i', async (actor, status) => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/products`, tokens[actor])
+    expect(res.status).toBe(status)
+    if (status === 200) {
+      const listed = (res.body.products as { id: string }[]).map(p => p.id)
+      expect(listed).toContain(ids.productA1)
+      expect(listed).not.toContain(ids.productA2)
+      expect(listed).not.toContain(ids.productB)
+    }
+    else {
+      expect(res.body).toMatchObject({ code: errorCodes[status] })
+    }
+  })
+
+  it.each<[Actor, number]>([
+    ['ownerA', 201],
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('POST /products %s → %i', async (actor, status) => {
+    const res = await call('POST', `/api/stores/${ids.storeA1}/products`, tokens[actor], { name: `Món ${actor}`, basePriceVnd: 20000 })
+    expect(res.status).toBe(status)
+    if (status !== 201) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it.each<[Actor, number]>([
+    ['ownerA', 200],
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('PATCH /products/:id %s → %i', async (actor, status) => {
+    const res = await call('PATCH', `/api/stores/${ids.storeA1}/products/${ids.productA1}`, tokens[actor], { isAvailable: true })
+    expect(res.status).toBe(status)
+    if (status !== 200) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it('a category from another store is 404 on create and update (same org or other org)', async () => {
+    for (const categoryId of [ids.categoryA2, ids.categoryB]) {
+      expect(await call('POST', `/api/stores/${ids.storeA1}/products`, tokens.ownerA, { name: 'X', basePriceVnd: 1000, categoryId }))
+        .toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+      expect(await call('PATCH', `/api/stores/${ids.storeA1}/products/${ids.productA1}`, tokens.ownerA, { categoryId }))
+        .toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    }
+  })
+
+  it('a product of another store is 404 and stays unchanged', async () => {
+    expect(await call('PATCH', `/api/stores/${ids.storeA1}/products/${ids.productA2}`, tokens.ownerA, { name: 'Hijack' })).toMatchObject({ status: 404 })
+    expect(await call('PATCH', `/api/stores/${ids.storeB}/products/${ids.productA1}`, tokens.ownerB, { name: 'Hijack' })).toMatchObject({ status: 404 })
+    const list = await call('GET', `/api/stores/${ids.storeA2}/products`, tokens.ownerA)
+    expect((list.body.products as { id: string, name: string }[]).find(p => p.id === ids.productA2)!.name).toBe('Món A2')
+  })
+
+  it('validates the body (negative price, blank name, unknown fields are ignored)', async () => {
+    expect(await call('POST', `/api/stores/${ids.storeA1}/products`, tokens.ownerA, { name: 'A', basePriceVnd: -5 })).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    expect(await call('POST', `/api/stores/${ids.storeA1}/products`, tokens.ownerA, { name: ' ', basePriceVnd: 5 })).toMatchObject({ status: 400 })
+    const created = await call('POST', `/api/stores/${ids.storeA1}/products`, tokens.ownerA, { name: 'Có thừa', basePriceVnd: 5, orgId: ids.storeB, storeId: ids.storeB })
+    expect(created.status).toBe(201)
+    expect(created.body).not.toHaveProperty('orgId')
+  })
+})
