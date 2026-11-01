@@ -1,13 +1,14 @@
 import { fileURLToPath } from 'node:url'
 import { setup } from '@nuxt/test-utils/e2e'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { closeDb, getDb } from '../../server/db/client'
-import { stores } from '../../server/db/schema'
+import { products, stores } from '../../server/db/schema'
+import { deleteObject, PRODUCT_IMAGES_BUCKET } from '../../server/services/storage'
 import { createTestAuth } from '../support/auth'
 import { resetDb } from '../support/db'
 import { addStaff, createCategory, createOptionGroup, createProduct, createTenant } from '../support/fixtures'
-import { call } from '../support/http'
+import { call, callForm } from '../support/http'
 import { findForbiddenKeys } from '../support/json'
 
 const auth = await createTestAuth()
@@ -28,6 +29,7 @@ const seed = {} as {
   staffToken: string
   otherStoreId: string
   otherOwnerToken: string
+  productId: string
 }
 
 beforeAll(async () => {
@@ -47,6 +49,7 @@ beforeAll(async () => {
     staffToken: await sign(staff),
     otherStoreId: b.store.id,
     otherOwnerToken: await sign(b.owner),
+    productId: product.id,
   })
 })
 
@@ -97,5 +100,75 @@ describe('GET /api/public/stores/:slug/menu', () => {
     const missing = await call('GET', '/api/public/stores/khong-ton-tai/menu')
     expect(suspended.status).toBe(404)
     expect(suspended.body).toEqual(missing.body)
+  })
+})
+
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+)
+
+function imageForm(bytes: Uint8Array, filename: string, type: string, field = 'file') {
+  const form = new FormData()
+  form.append(field, new Blob([bytes], { type }), filename)
+  return form
+}
+
+const imageKeyInDb = async () =>
+  (await getDb().select({ key: products.imageKey }).from(products).where(and(eq(products.id, seed.productId), eq(products.orgId, seed.orgId), eq(products.storeId, seed.storeId))))[0]!.key
+
+describe('POST /api/stores/:id/products/:productId/image', () => {
+  const path = () => `/api/stores/${seed.storeId}/products/${seed.productId}/image`
+
+  it('stores a valid image, serves it publicly and exposes it in the public menu', async () => {
+    try {
+      const res = await callForm('POST', path(), seed.ownerToken, imageForm(PNG_1X1, 'tra-sua.png', 'image/png'))
+      expect(res.status).toBe(200)
+      expect(res.body.imageUrl).toMatch(/\.png$/)
+
+      const served = await fetch(res.body.imageUrl)
+      expect(served.status).toBe(200)
+      expect(new Uint8Array(await served.arrayBuffer())).toEqual(new Uint8Array(PNG_1X1))
+      const menu = await call('GET', `/api/public/stores/${seed.slug}/menu`)
+      expect(menu.body.products.find((p: { id: string }) => p.id === seed.productId).imageUrl).toBe(res.body.imageUrl)
+    }
+    finally {
+      const key = await imageKeyInDb()
+      if (key) await deleteObject(PRODUCT_IMAGES_BUCKET, key)
+      await getDb().update(products).set({ imageKey: null }).where(and(eq(products.id, seed.productId), eq(products.orgId, seed.orgId), eq(products.storeId, seed.storeId)))
+    }
+  })
+
+  it('rejects a text file renamed .png even when it claims image/png', async () => {
+    const fake = Buffer.from('not really an image')
+    const res = await callForm('POST', path(), seed.ownerToken, imageForm(fake, 'evil.png', 'image/png'))
+    expect(res).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    expect(await imageKeyInDb()).toBeNull()
+  })
+
+  it('rejects a real PNG declared as image/jpeg', async () => {
+    const res = await callForm('POST', path(), seed.ownerToken, imageForm(PNG_1X1, 'a.jpg', 'image/jpeg'))
+    expect(res).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    expect(await imageKeyInDb()).toBeNull()
+  })
+
+  it('rejects a request without a file field', async () => {
+    const res = await callForm('POST', path(), seed.ownerToken, imageForm(PNG_1X1, 'a.png', 'image/png', 'other'))
+    expect(res).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+
+  it.each([2 * 1024 * 1024 + 1, 3 * 1024 * 1024])('rejects a %i byte file', async (size) => {
+    const big = new Uint8Array(size)
+    big.set(PNG_1X1)
+    const res = await callForm('POST', path(), seed.ownerToken, imageForm(big, 'big.png', 'image/png'))
+    expect(res).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    expect(await imageKeyInDb()).toBeNull()
+  })
+
+  it('only the owner of that store can upload', async () => {
+    expect((await callForm('POST', path(), null, imageForm(PNG_1X1, 'a.png', 'image/png'))).status).toBe(401)
+    expect((await callForm('POST', path(), seed.staffToken, imageForm(PNG_1X1, 'a.png', 'image/png'))).status).toBe(403)
+    expect((await callForm('POST', path(), seed.otherOwnerToken, imageForm(PNG_1X1, 'a.png', 'image/png'))).status).toBe(404)
+    expect(await imageKeyInDb()).toBeNull()
   })
 })
