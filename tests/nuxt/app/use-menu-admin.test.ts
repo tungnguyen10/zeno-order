@@ -48,6 +48,18 @@ describe('useMenuAdmin', () => {
     await vi.waitFor(() => expect(menu.status.value).toBe('error'))
   })
 
+  it('shows a successfully added product after the initial GET fails', async () => {
+    api.mockImplementation(async (_url: string, options?: { method?: string }) => {
+      if (options?.method === 'POST') return product({ id: 'p2' })
+      throw new Error('offline')
+    })
+    const menu = useMenuAdmin()
+    await vi.waitFor(() => expect(menu.status.value).toBe('error'))
+    await menu.addProduct({ name: 'Trà sữa', basePriceVnd: 35000, categoryId: null })
+    expect(menu.status.value).toBe('success')
+    expect(menu.products.value.map(p => p.id)).toEqual(['p2'])
+  })
+
   it('adds a product and patches availability', async () => {
     api.mockImplementation(async (url: string, options?: { method?: string }) => {
       if (options?.method === 'POST') return product({ id: 'p2', name: 'Cà phê' })
@@ -108,5 +120,56 @@ describe('useMenuAdmin', () => {
     newProducts.resolve({ products: [product({ id: 'p2' })] })
     await vi.waitFor(() => expect(menu.status.value).toBe('success'))
     expect(menu.products.value.map(p => p.id)).toEqual(['p2'])
+  })
+
+  it('ignores a mutation from the previous A session after switching A → B → A', async () => {
+    const oldPost = deferred<ProductDTO>()
+    let aLoads = 0
+    api.mockImplementation((url: string, options?: { method?: string }) => {
+      if (options?.method === 'POST') return oldPost.promise
+      if (url.endsWith('/categories')) return Promise.resolve({ categories: [] })
+      if (url.includes('/s1/')) {
+        aLoads++
+        return Promise.resolve({ products: aLoads === 1 ? [] : [product({ id: 'p2', name: 'New A row' })] })
+      }
+      return Promise.resolve({ products: [] })
+    })
+    const menu = useMenuAdmin()
+    await vi.waitFor(() => expect(menu.status.value).toBe('success'))
+    const post = menu.addProduct({ name: 'Old A row', basePriceVnd: 35000, categoryId: null })
+    useState<{ stores: Array<{ id: string }> }>('me').value.stores = [{ id: 's2' }]
+    await nextTick()
+    await vi.waitFor(() => expect(menu.storeId.value).toBe('s2'))
+    useState<{ stores: Array<{ id: string }> }>('me').value.stores = [{ id: 's1' }]
+    await nextTick()
+    await vi.waitFor(() => expect(menu.products.value.map(p => p.name)).toEqual(['New A row']))
+    oldPost.resolve(product({ id: 'p2', name: 'Old A row' }))
+    await post
+    expect(menu.products.value.map(p => p.name)).toEqual(['New A row'])
+  })
+
+  it('does not overwrite a newer A row with a PATCH from the previous A session', async () => {
+    const oldPatch = deferred<ProductDTO>()
+    let aLoads = 0
+    api.mockImplementation((url: string, options?: { method?: string }) => {
+      if (options?.method === 'PATCH') return oldPatch.promise
+      if (url.endsWith('/categories')) return Promise.resolve({ categories: [] })
+      if (url.includes('/s1/')) {
+        aLoads++
+        return Promise.resolve({ products: [product({ isAvailable: aLoads === 1 })] })
+      }
+      return Promise.resolve({ products: [] })
+    })
+    const menu = useMenuAdmin()
+    await vi.waitFor(() => expect(menu.status.value).toBe('success'))
+    const patch = menu.patchProduct('p1', { isAvailable: true })
+    useState<{ stores: Array<{ id: string }> }>('me').value.stores = [{ id: 's2' }]
+    await nextTick()
+    useState<{ stores: Array<{ id: string }> }>('me').value.stores = [{ id: 's1' }]
+    await nextTick()
+    await vi.waitFor(() => expect(menu.products.value[0]?.isAvailable).toBe(false))
+    oldPatch.resolve(product({ isAvailable: true }))
+    await patch
+    expect(menu.products.value[0]?.isAvailable).toBe(false)
   })
 })

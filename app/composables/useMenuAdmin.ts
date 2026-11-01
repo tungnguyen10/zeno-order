@@ -43,22 +43,28 @@ export function useMenuAdmin() {
 
   async function addProduct(input: { name: string, basePriceVnd: number, categoryId: string | null }): Promise<ProductDTO> {
     const id = currentStoreId()
+    const request = generation
     const created = await api<ProductDTO>(`/api/stores/${id}/products`, { method: 'POST', body: input })
-    if (storeId.value === id) products.value = [...products.value, created]
+    if (storeId.value === id && request === generation) {
+      products.value = [...products.value, created]
+      status.value = 'success'
+    }
     return created
   }
 
   async function addCategory(name: string): Promise<CategoryDTO> {
     const id = currentStoreId()
+    const request = generation
     const created = await api<CategoryDTO>(`/api/stores/${id}/categories`, { method: 'POST', body: { name } })
-    if (storeId.value === id) categories.value = [...categories.value, created]
+    if (storeId.value === id && request === generation) categories.value = [...categories.value, created]
     return created
   }
 
   async function patchProduct(productId: string, patch: Record<string, unknown>): Promise<ProductDTO> {
     const id = currentStoreId()
+    const request = generation
     const updated = await api<ProductDTO>(`/api/stores/${id}/products/${productId}`, { method: 'PATCH', body: patch })
-    if (storeId.value === id) replaceProduct(updated)
+    if (storeId.value === id && request === generation) replaceProduct(updated)
     return updated
   }
 

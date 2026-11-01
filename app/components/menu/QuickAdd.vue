@@ -4,6 +4,7 @@ import { vndSchema } from '#shared/schemas/common'
 import type { CategoryDTO, ProductDTO } from '#shared/types/catalog'
 
 const props = defineProps<{
+  storeId: string | undefined
   categories: CategoryDTO[]
   addProduct: (input: { name: string, basePriceVnd: number, categoryId: string | null }) => Promise<ProductDTO>
   addCategory: (name: string) => Promise<CategoryDTO>
@@ -17,6 +18,20 @@ const adding = shallowRef(false)
 const categoryName = shallowRef('')
 const addingCategory = shallowRef(false)
 const nameField = useTemplateRef<{ $el: HTMLElement }>('nameField')
+let formGeneration = 0
+
+watch(() => props.storeId, () => {
+  formGeneration++
+  form.name = ''
+  form.price = ''
+  form.categoryId = NO_CATEGORY
+  categoryName.value = ''
+  errors.name = ''
+  errors.price = ''
+  errors.category = ''
+  adding.value = false
+  addingCategory.value = false
+})
 
 const categoryItems = computed(() => [
   { label: 'Không phân loại', value: NO_CATEGORY },
@@ -30,21 +45,23 @@ async function submit() {
   errors.price = price !== null && vndSchema.safeParse(price).success ? '' : 'Nhập giá hợp lệ'
   if (errors.name || errors.price || price === null) return
   adding.value = true
+  const request = formGeneration
   try {
     const created = await props.addProduct({
       name: form.name.trim(), basePriceVnd: price,
       categoryId: form.categoryId === NO_CATEGORY ? null : form.categoryId,
     })
+    if (request !== formGeneration) return
     toast.add({ color: 'success', title: `Đã thêm ${created.name}` })
     form.name = ''
     form.price = ''
     nameField.value?.$el.querySelector('input')?.focus()
   }
   catch (err) {
-    toast.add({ color: 'error', title: extractApiError(err).message })
+    if (request === formGeneration) toast.add({ color: 'error', title: extractApiError(err).message })
   }
   finally {
-    adding.value = false
+    if (request === formGeneration) adding.value = false
   }
 }
 
@@ -54,17 +71,19 @@ async function submitCategory() {
   errors.category = name ? '' : 'Nhập tên danh mục'
   if (!name) return
   addingCategory.value = true
+  const request = formGeneration
   try {
     const created = await props.addCategory(name)
+    if (request !== formGeneration) return
     form.categoryId = created.id
     categoryName.value = ''
     toast.add({ color: 'success', title: `Đã thêm danh mục ${created.name}` })
   }
   catch (err) {
-    toast.add({ color: 'error', title: extractApiError(err).message })
+    if (request === formGeneration) toast.add({ color: 'error', title: extractApiError(err).message })
   }
   finally {
-    addingCategory.value = false
+    if (request === formGeneration) addingCategory.value = false
   }
 }
 </script>

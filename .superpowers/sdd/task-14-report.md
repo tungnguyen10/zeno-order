@@ -11,3 +11,12 @@ Verification:
 - `npm run lint` and `npm run typecheck` passed.
 
 Existing duplicate Nuxt `console.time` warnings appeared in Vitest as noted in integration notes.
+
+## Review follow-up
+
+Resolved all three findings in `task-14-review.md`:
+- Quick-add receives the active store ID and clears its selected category and draft when that ID changes. Late form responses cannot alter the new store's form.
+- A successful product POST after a failed initial GET sets menu status to success, making the created row visible.
+- Product/category POST and product PATCH responses now require both the originating store ID and the same request generation. A → B → A cannot apply an earlier A mutation to the new A load.
+
+Three regressions failed before these changes. Final focused unit/Nuxt run passed 69/69 across seven files, including a separate late PATCH case; menu Playwright passed 4/4 across mobile Chrome and Safari. `npm run lint`, targeted test lint, and `npm run typecheck` passed.
