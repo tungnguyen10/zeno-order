@@ -5,7 +5,7 @@ export default withNuxt({
   rules: {
     'vue/multi-word-component-names': 'off',
     'vue/no-restricted-syntax': ['error', {
-      selector: 'VElement[rawName=/^U(Button|Input|Select|Switch|Card|Alert|Badge|FormField)$/]',
+      selector: 'VElement[rawName=/^U(Button|Input|Select|Switch|Card|Alert|Badge|FormField|Drawer|Tabs)$/]',
       message: 'Use the Z* primitives (app/components/z) instead of Nuxt UI components in pages and layouts.',
     }],
   },

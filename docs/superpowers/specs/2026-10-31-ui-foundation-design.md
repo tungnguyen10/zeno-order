@@ -16,7 +16,7 @@ Dựng nền design system production-ready, mobile-first (360px) cho ZENO dựa
 
 **Ràng buộc:** giữ nguyên route, API, logic nghiệp vụ, label và tên nút mà E2E đang dùng Hai ngoại lệ có chủ đích, kèm cập nhật test: bước đăng xuất đi qua menu tài khoản (§5.1) và h1 landing đổi thành slogan (§6.1).
 
-**Ngoài phạm vi:** flow quên mật khẩu (ẩn link), `ZSheet`/`ZTabs`/`ZTable` (thêm khi phase đầu tiên cần), màn Phase 2+, thay đổi API.
+**Ngoài phạm vi:** flow quên mật khẩu (ẩn link), `ZTable` (thêm khi cần), màn Phase 2+ ngoài các primitive `ZSheet` và `ZTabs` đã được PR2 đưa vào phạm vi, thay đổi API.
 
 ## 2. Quyết định đã chốt
 
@@ -113,7 +113,7 @@ Mỗi trang dùng tối đa 2 cỡ tiêu đề display.
 
 ### 4.1 Quy ước
 - Primitive ở `app/components/z/` (auto-import `ZButton`, `ZInput`, …); component cấp app ở `app/components/app/` (`AppLogo`, `AppAuthShell`, …).
-- `pages/` và `layouts/` **chỉ dùng `Z*`** cho các primitive dưới đây. Nuxt UI được dùng trực tiếp cho hạ tầng: `UApp`, `UForm`, `useToast`, `UIcon`, `NuxtLoadingIndicator`. Quy tắc này được ESLint enforce (cấm `UButton`, `UInput`, `USelect`, `USwitch`, `UCard`, `UAlert`, `UBadge`, `UFormField` trong `pages/**` và `layouts/**`).
+- `pages/` và `layouts/` **chỉ dùng `Z*`** cho các primitive dưới đây. Nuxt UI được dùng trực tiếp cho hạ tầng: `UApp`, `UForm`, `useToast`, `UIcon`, `NuxtLoadingIndicator`. Quy tắc này được ESLint enforce (cấm `UButton`, `UInput`, `USelect`, `USwitch`, `UCard`, `UAlert`, `UBadge`, `UFormField`, `UDrawer`, `UTabs` trong `pages/**` và `layouts/**`).
 - Primitive giữ API gọn, chỉ những prop cần dùng; style được đặt qua prop `ui`/`class` của component Nuxt UI bên trong, đọc từ tokens ở §3.
 - Override touch target trong `app.config.ts` hiện tại được giữ hoặc chuyển vào primitive. Không được làm hụt mức tối thiểu 44px.
 
@@ -129,6 +129,8 @@ Mỗi trang dùng tối đa 2 cỡ tiêu đề display.
 | `ZCard` | `variant`: `raised` \| `elevated` \| `flat`; `padding`: `md` 16px \| `lg` 24px; slot `header`, `default`, `footer` | Nền `surface`, radius 12. `raised`: `shadow-raised` (dark: border + shadow phẳng). `elevated`: `shadow-md`. `flat`: border |
 | `ZAlert` | `color`: `info` \| `success` \| `warning` \| `error`; `title`, `description`, `icon`, slot `actions` | Nền chip bg, chữ AA (§3.2). `error` và `warning` dùng `role="alert"`, còn lại `role="status"` |
 | `ZBadge` | `status`: `success` \| `warning` \| `error` \| `info` \| `neutral`; `size`: `sm` \| `md`; `icon` | Pill, màu theo §3.2 |
+| `ZSheet` | `v-model:open`, `title`, `description?`, slot `default`, slot `footer?` | Bottom sheet dùng `UDrawer`, focus trap sẵn có, phần thân cuộn được; description ẩn bằng `sr-only` khi bỏ trống |
+| `ZTabs` | `v-model`, `items`: `{ label, value, icon? }[]` | Thanh tab dùng `UTabs`, không render nội dung; cuộn ngang trên màn hình hẹp |
 
 ### 4.3 Component cấp app
 
