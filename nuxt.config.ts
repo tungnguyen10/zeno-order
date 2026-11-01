@@ -1,4 +1,7 @@
 export default defineNuxtConfig({
+  $env: {
+    e2e: { buildDir: '.cache/nuxt-e2e' },
+  },
   compatibilityDate: '2026-09-14',
   devtools: { enabled: true },
   modules: ['@nuxt/eslint', '@nuxt/ui', '@pinia/nuxt'],

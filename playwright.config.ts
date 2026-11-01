@@ -22,7 +22,7 @@ export default defineConfig({
     { name: 'mobile-safari', use: { ...devices['iPhone 14'] } },
   ],
   webServer: {
-    command: `npx nuxt dev --port ${PORT} --dotenv .env.test`,
+    command: `npx nuxt dev --port ${PORT} --dotenv .env.test --envName e2e`,
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
