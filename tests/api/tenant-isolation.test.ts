@@ -472,3 +472,73 @@ describe('delivery zones', () => {
     expect(await call('PATCH', `/api/stores/${ids.storeA1}/delivery-zones/${ids.zoneA1}`, tokens.ownerA, { feeVnd: -1 })).toMatchObject({ status: 400 })
   })
 })
+
+describe('tables', () => {
+  it.each<[Actor, number]>([
+    ['ownerA', 200],
+    ['staffA1', 200],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('GET /tables %s → %i', async (actor, status) => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/tables`, tokens[actor])
+    expect(res.status).toBe(status)
+    if (status === 200) {
+      expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|token_hash|qrUrl/)
+      expect(Object.keys(res.body.tables[0]).sort()).toEqual(['active', 'code', 'displayName', 'id'])
+    }
+    else {
+      expect(res.body).toMatchObject({ code: errorCodes[status] })
+    }
+  })
+
+  it.each<[Actor, number]>([
+    ['ownerA', 201],
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+  ])('POST /tables %s → %i', async (actor, status) => {
+    const res = await call('POST', `/api/stores/${ids.storeA1}/tables`, tokens[actor], {})
+    expect(res.status).toBe(status)
+    if (status === 201) expect(res.body.qrUrl).toContain(`/s/${ids.storeA1Slug}?t=`)
+    else expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it.each<[Actor, number]>([
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+    ['ownerA', 200],
+  ])('PATCH /tables/:id %s → %i', async (actor, status) => {
+    const res = await call('PATCH', `/api/stores/${ids.storeA1}/tables/${ids.tableA1}`, tokens[actor], { active: true })
+    expect(res.status).toBe(status)
+    if (status !== 200) expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it.each<[Actor, number]>([
+    ['staffA1', 403],
+    ['staffA2', 404],
+    ['disabledA1', 404],
+    ['ownerB', 404],
+    ['ownerA', 200],
+  ])('POST /tables/:id/regenerate %s → %i', async (actor, status) => {
+    const res = await call('POST', `/api/stores/${ids.storeA1}/tables/${ids.tableA1}/regenerate`, tokens[actor])
+    expect(res.status).toBe(status)
+    if (status === 200) expect(Object.keys(res.body).sort()).toEqual(['active', 'code', 'displayName', 'id', 'qrUrl'])
+    else expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it('a table of another store is 404 for update and regenerate', async () => {
+    expect(await call('PATCH', `/api/stores/${ids.storeA2}/tables/${ids.tableA1}`, tokens.ownerA, { active: false })).toMatchObject({ status: 404 })
+    expect(await call('POST', `/api/stores/${ids.storeA2}/tables/${ids.tableA1}/regenerate`, tokens.ownerA)).toMatchObject({ status: 404 })
+    expect(await call('POST', `/api/stores/${ids.storeB}/tables/${ids.tableA1}/regenerate`, tokens.ownerB)).toMatchObject({ status: 404 })
+  })
+
+  it('rejects a duplicate manual code with 400', async () => {
+    const first = await call('POST', `/api/stores/${ids.storeA1}/tables`, tokens.ownerA, { code: 'VIP' })
+    expect(first.status).toBe(201)
+    expect(await call('POST', `/api/stores/${ids.storeA1}/tables`, tokens.ownerA, { code: 'VIP' })).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+})
