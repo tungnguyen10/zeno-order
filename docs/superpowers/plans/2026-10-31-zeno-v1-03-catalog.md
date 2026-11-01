@@ -10,6 +10,16 @@
 
 **Spec:** [2026-10-31-zeno-mini-order-v1-design.md](../specs/2026-10-31-zeno-mini-order-v1-design.md) (§2, §3, §4.2–4.4, §7, §9) · PRD: [ZENO_MINI_ORDER_V1_IMPLEMENTATION_PLAN.md](../../ZENO_MINI_ORDER_V1_IMPLEMENTATION_PLAN.md) (§1 Delivery, §2.1–2.3, §3 O3/O4) · UI: [2026-10-31-ui-foundation-design.md](../specs/2026-10-31-ui-foundation-design.md) · Roadmap: [2026-10-31-zeno-v1-00-roadmap.md](./2026-10-31-zeno-v1-00-roadmap.md) (mục PR2) · Phụ thuộc: PR0, PR1 đã merge.
 
+## Execution update — 2026-11-01
+
+Người dùng đã duyệt [spec hoàn thiện PR2](../specs/2026-11-01-pr2-catalog-design.md) và cho phép triển khai liên tục. Tái sử dụng plan chi tiết này, không tạo bản plan trùng lặp.
+
+- Baseline `81fb09f` đã có UI foundation, settings draft/save bar, `useUnsavedChangesGuard` và guard đổi store/đăng xuất. Task 5, 16, 18 phải tích hợp trên code thật, không thay bằng phiên bản cũ làm mất guard. Chuyển tab khi draft chưa lưu cũng phải có cảnh báo.
+- Roadmap đã ghi plan PR2 là chi tiết 19 task; Task 19 cập nhật đúng dòng hiện có thay vì tìm old string đã lỗi thời.
+- Thêm Task 20 cho seed menu mà roadmap yêu cầu. Chạy Task 20 trước kiểm chứng toàn PR ở Task 19; giữ số task 1–19 để các plan PR3–PR6 tiếp tục tham chiếu chính xác.
+- Mỗi task chạy test tập trung và review; lần cuối chạy toàn bộ lint/typecheck/unit/component/integration/API/build/E2E. Không chạy đồng thời các suite có reset cùng database test.
+- Migrations chỉ dùng `.env.test` và branch test đã xác minh. Không in connection strings hoặc secrets trong output.
+
 ## Global Constraints
 
 Áp dụng "Global Constraints" và "Quy ước xuyên PR" của roadmap. Điểm chạm PR này:
@@ -8182,6 +8192,107 @@ git commit -m "test(catalog): add end-to-end catalog journey and record spec not
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
+
+---
+
+### Task 20: Seed menu có scope và chạy lặp an toàn
+
+Chạy trước Task 19, sau Task 1. Files: `server/services/catalog/seed.ts`, `shared/seed-environment.ts`, `scripts/seed-catalog.ts`, `tests/unit/shared/seed-environment.test.ts`, `tests/integration/catalog-seed.test.ts`, `package.json`, `.env.example`.
+
+**Interfaces:** `assertSeedEnvironment(env: Record<string, string | undefined>): string` trả UUID store; `seedCatalog(db: Db, storeId: string): Promise<{ created: boolean }>`.
+
+- [ ] **Step 1: Test guard thất bại trước implementation**
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { assertSeedEnvironment } from '#shared/seed-environment'
+const storeId = '11111111-1111-4111-8111-111111111111'
+const allowed = { ZENO_SEED_CATALOG: '1', NEON_BRANCH: 'test', SEED_STORE_ID: storeId }
+describe('seed environment', () => {
+  it('requires an explicit development/test branch and store', () => {
+    expect(assertSeedEnvironment(allowed)).toBe(storeId)
+    expect(assertSeedEnvironment({ ...allowed, NEON_BRANCH: 'development' })).toBe(storeId)
+    for (const patch of [{ ZENO_SEED_CATALOG: undefined }, { NEON_BRANCH: 'production' }, { NEON_BRANCH: undefined }, { SEED_STORE_ID: undefined }, { SEED_STORE_ID: 'bad' }]) {
+      expect(() => assertSeedEnvironment({ ...allowed, ...patch })).toThrow()
+    }
+  })
+})
+```
+
+Run `npx vitest run --project unit tests/unit/shared/seed-environment.test.ts`; expected missing module. Implement:
+
+```ts
+import { z } from 'zod'
+export function assertSeedEnvironment(env: Record<string, string | undefined>): string {
+  if (env.ZENO_SEED_CATALOG !== '1' || !['test', 'development'].includes(env.NEON_BRANCH ?? '')) {
+    throw new Error('Catalog seed requires ZENO_SEED_CATALOG=1 and NEON_BRANCH=test or development')
+  }
+  const id = z.uuid().safeParse(env.SEED_STORE_ID)
+  if (!id.success) throw new Error('SEED_STORE_ID must identify an existing development/test store')
+  return id.data
+}
+```
+
+- [ ] **Step 2: Integration test chạy lặp và tenant trước service**
+
+Dùng `resetDb`, `createTenant`, `getDb` trong beforeEach, theo pattern test catalog hiện có. Tạo tenant A/B; gọi seed A hai lần, expected `{ created: true }`, `{ created: false }`; SELECT category/products theo `storeId` xác nhận A có 1 category + 2 products và B không đổi. UUID không tồn tại phải reject và không tạo category. Run `npm run test:integration -- tests/integration/catalog-seed.test.ts` trước service; expected missing module.
+
+Service implementation:
+
+```ts
+import { and, eq } from 'drizzle-orm'
+import type { Db } from '../../db/client'
+import { categories, productOptionGroups, productOptionValues, products, stores } from '../../db/schema'
+import { AppError } from '../../utils/errors'
+export async function seedCatalog(db: Db, storeId: string): Promise<{ created: boolean }> {
+  return db.transaction(async (tx) => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, storeId)).for('update').limit(1)
+    if (!store) throw new AppError('NOT_FOUND', 'Không tìm thấy cửa hàng')
+    const scope = { orgId: store.orgId, storeId: store.id }
+    const [existing] = await tx.select({ id: categories.id }).from(categories).where(and(eq(categories.orgId, scope.orgId), eq(categories.storeId, scope.storeId), eq(categories.name, 'Menu mẫu ZENO'))).limit(1)
+    if (existing) return { created: false }
+    const [category] = await tx.insert(categories).values({ ...scope, name: 'Menu mẫu ZENO', position: 0 }).returning()
+    await tx.insert(products).values({ ...scope, categoryId: category!.id, name: 'Cà phê sữa', basePriceVnd: 25000, position: 0 })
+    const [tea] = await tx.insert(products).values({ ...scope, categoryId: category!.id, name: 'Trà sữa', basePriceVnd: 35000, position: 1 }).returning()
+    const [group] = await tx.insert(productOptionGroups).values({ ...scope, productId: tea!.id, name: 'Size', required: true, minSelect: 1, maxSelect: 1, position: 0 }).returning()
+    await tx.insert(productOptionValues).values([
+      { ...scope, groupId: group!.id, name: 'M', priceDeltaVnd: 0, position: 0 },
+      { ...scope, groupId: group!.id, name: 'L', priceDeltaVnd: 5000, position: 1 },
+    ])
+    return { created: true }
+  })
+}
+```
+
+- [ ] **Step 3: CLI và tài liệu**
+
+`package.json` thêm `"db:seed": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/seed-catalog.ts"` **chỉ nếu runtime Node 24 thật sự resolve được import extensionless**. Ưu tiên runner đang có trong dev dependencies; nếu Node không resolve, thêm `tsx` với version chính xác đã xác minh qua npm và dùng `"db:seed": "tsx scripts/seed-catalog.ts"`. Không đổi import convention toàn app chỉ để hỗ trợ CLI.
+
+CLI dùng `loadEnvFileOverride(process.env.ENV_FILE ?? '.env.test')`, guard trước `getDb()`, gọi service và luôn close DB; lỗi chỉ in thông báo cố định và set exitCode 1, không in connection strings. Nội dung:
+
+```ts
+import { closeDb, getDb } from '../server/db/client'
+import { seedCatalog } from '../server/services/catalog/seed'
+import { assertSeedEnvironment } from '../shared/seed-environment'
+import { loadEnvFileOverride } from '../tests/support/test-env'
+try {
+  loadEnvFileOverride(process.env.ENV_FILE ?? '.env.test')
+  const storeId = assertSeedEnvironment(process.env)
+  const result = await seedCatalog(getDb(), storeId)
+  console.info(result.created ? 'Created sample menu' : 'Sample menu already exists; no changes')
+}
+catch {
+  console.error('Catalog seed failed; check explicit seed opt-in, branch, store ID and database configuration')
+  process.exitCode = 1
+}
+finally { await closeDb() }
+```
+
+`.env.example` thêm comment `# Optional catalog seed: ZENO_SEED_CATALOG=1, NEON_BRANCH=test|development, SEED_STORE_ID=<existing store UUID>` và tài liệu lệnh `ENV_FILE=.env.test npm run db:seed`; không bật opt-in mặc định. Seed không tự tạo auth user, không reset DB, không chỉnh sửa dữ liệu mẫu đã có.
+
+- [ ] **Step 4: Chạy unit/integration cho seed, lint, typecheck và commit**
+
+Expected tests PASS; report rõ RED/GREEN. Commit `feat(catalog): add scoped idempotent development menu seed` với trailer chung của dự án.
 
 ---
 
