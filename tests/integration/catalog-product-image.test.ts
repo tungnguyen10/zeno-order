@@ -1,10 +1,11 @@
 import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_PRODUCT_IMAGE_BYTES } from '#shared/catalog-limits'
 import type { StoreContext } from '../../server/auth/guards'
 import { closeDb, getDb } from '../../server/db/client'
 import { products } from '../../server/db/schema'
 import { replaceProductImage, type ImageStorage } from '../../server/services/catalog/product-image'
+import { logger } from '../../server/utils/logger'
 import { resetDb } from '../support/db'
 import { createProduct, createTenant } from '../support/fixtures'
 
@@ -144,6 +145,31 @@ describe('replaceProductImage', () => {
     await expect(replaceProductImage(getDb(), ctxOf(t), product.id, PNG, storage)).rejects.toMatchObject({ code: 'NOT_FOUND' })
     expect(uploaded).not.toBe('')
     expect(removed).toEqual([uploaded])
+  })
+
+  it('logs a failed rollback cleanup and preserves the database error', async () => {
+    const t = await createTenant('cleanup-failed')
+    const product = await createProduct(t.store)
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    let uploaded = ''
+    const storage: ImageStorage = {
+      put: async ({ key }) => {
+        uploaded = key
+        await getDb().delete(products).where(and(eq(products.id, product.id), eq(products.orgId, t.org.id), eq(products.storeId, t.store.id)))
+      },
+      remove: async () => { throw new Error('storage cleanup failed') },
+    }
+    try {
+      await expect(replaceProductImage(getDb(), ctxOf(t), product.id, PNG, storage)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+      expect(warn).toHaveBeenCalledWith('catalog.image_rollback_cleanup_failed', {
+        productId: product.id,
+        key: uploaded,
+        err: expect.objectContaining({ message: 'storage cleanup failed' }),
+      })
+    }
+    finally {
+      warn.mockRestore()
+    }
   })
 
   it('rejects a mismatched organization even with the correct store id', async () => {

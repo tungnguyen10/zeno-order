@@ -65,7 +65,9 @@ export async function replaceProductImage(
     })
   }
   catch (err) {
-    await storage.remove(PRODUCT_IMAGES_BUCKET, key).catch(() => undefined)
+    await storage.remove(PRODUCT_IMAGES_BUCKET, key).catch((cleanupError: unknown) => {
+      logger.warn('catalog.image_rollback_cleanup_failed', { productId, key, err: cleanupError })
+    })
     throw err
   }
 
