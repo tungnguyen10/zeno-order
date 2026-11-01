@@ -8,3 +8,13 @@ Verification:
 - `npm run lint`, `npm run typecheck`, and `git diff --check` passed.
 
 The final full E2E command did not exit green because of that one transient signup failure. The editor flows and invalid-image assertions passed in both browser projects.
+
+## Review follow-up
+
+Addressed `task-15-review.md` findings:
+- Existing option groups retain their exact `required`, `minSelect`, and `maxSelect` rules while owners edit names, prices, or values. The editor shows a note for rules outside the three presets. Explicitly changing the preset applies its standard rules, including when switching away and back. Local validation now covers the API's group, value, and name bounds.
+- Save is disabled during image upload, and upload is disabled during save. All asynchronous responses are checked against the originating store/product session before changing local state.
+- The sheet tracks unsaved draft state through the existing page guard. Closing a dirty sheet asks for confirmation; a confirmed store switch closes and clears the editor. Reopening starts from the persisted product.
+- After a successful metadata PATCH, the menu receives that DTO immediately. If the options PUT fails, the sheet remains open and reports that metadata saved but options did not, so the owner can retry.
+
+Verification: new unit/Nuxt regressions passed 14/14 across two files. The new metadata/category/preset and cancel/reopen browser journey passed 2/2 on mobile Chrome and Safari. Existing image/option browser journeys passed 4/4 on both mobile projects. `npm run lint`, `npm run typecheck`, and `git diff --check` passed. Browser tests ran with `--workers=1` on port 3100; port 3000 was untouched.

@@ -22,6 +22,9 @@ export interface EditableGroup {
   name: string
   preset: GroupPreset
   values: EditableValue[]
+  originalPreset?: GroupPreset
+  presetChanged?: boolean
+  originalRules?: { required: boolean, minSelect: number, maxSelect: number }
 }
 
 export interface OptionsPayloadGroup {
@@ -50,6 +53,8 @@ export function toEditableGroups(groups: OptionGroupDTO[], makeKey: () => string
     key: makeKey(),
     name: group.name,
     preset: presetOf(group),
+    originalPreset: presetOf(group),
+    originalRules: { required: group.required, minSelect: group.minSelect, maxSelect: group.maxSelect },
     values: group.values.map(value => ({
       key: makeKey(),
       name: value.name,
@@ -60,15 +65,18 @@ export function toEditableGroups(groups: OptionGroupDTO[], makeKey: () => string
 }
 
 export function buildOptionsPayload(groups: EditableGroup[]): { ok: true, groups: OptionsPayloadGroup[] } | { ok: false, error: string } {
+  if (groups.length > 10) return { ok: false, error: 'Tối đa 10 nhóm option' }
   const payload: OptionsPayloadGroup[] = []
   for (const group of groups) {
     const name = group.name.trim()
     if (!name) return { ok: false, error: 'Nhóm option cần có tên' }
+    if (name.length > 60) return { ok: false, error: `Tên nhóm "${name}" tối đa 60 ký tự` }
 
     const values: OptionsPayloadGroup['values'] = []
     for (const value of group.values) {
       const valueName = value.name.trim()
       if (!valueName) continue
+      if (valueName.length > 60) return { ok: false, error: `Tên lựa chọn trong nhóm "${name}" tối đa 60 ký tự` }
       const delta = value.priceRaw.trim() === '' ? 0 : parseVndInput(value.priceRaw)
       if (delta === null || !vndSchema.safeParse(delta).success) {
         return { ok: false, error: `Giá cộng thêm của "${valueName}" không hợp lệ` }
@@ -76,8 +84,11 @@ export function buildOptionsPayload(groups: EditableGroup[]): { ok: true, groups
       values.push({ name: valueName, priceDeltaVnd: delta, active: value.active })
     }
     if (values.length === 0) return { ok: false, error: `Nhóm "${name}" cần ít nhất một lựa chọn` }
+    if (values.length > 30) return { ok: false, error: `Nhóm "${name}" có tối đa 30 lựa chọn` }
 
-    const rules = rulesOf(group.preset, values.length)
+    const rules = !group.presetChanged && group.originalPreset === group.preset && group.originalRules
+      ? group.originalRules
+      : rulesOf(group.preset, values.length)
     if (values.filter(value => value.active).length < rules.minSelect) {
       return { ok: false, error: `Nhóm "${name}" cần ít nhất một lựa chọn đang bật` }
     }

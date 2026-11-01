@@ -81,4 +81,44 @@ describe('buildOptionsPayload', () => {
     const result = buildOptionsPayload(toEditableGroups([dto], makeKey))
     expect(result).toMatchObject({ ok: true, groups: [{ name: 'Đường', required: true, minSelect: 1, maxSelect: 1 }] })
   })
+
+  it('preserves required multi-select and nonzero optional minimums when editing values', () => {
+    const dto: OptionGroupDTO[] = [
+      { id: 'required', name: 'Toppings', required: true, minSelect: 2, maxSelect: 3, position: 0, values: [
+        { id: 'a', name: 'A', priceDeltaVnd: 0, active: true, position: 0 },
+        { id: 'b', name: 'B', priceDeltaVnd: 0, active: true, position: 1 },
+        { id: 'c', name: 'C', priceDeltaVnd: 0, active: true, position: 2 },
+      ] },
+      { id: 'minimum', name: 'Sauce', required: false, minSelect: 1, maxSelect: 2, position: 1, values: [
+        { id: 'd', name: 'D', priceDeltaVnd: 0, active: true, position: 0 },
+        { id: 'e', name: 'E', priceDeltaVnd: 0, active: true, position: 1 },
+      ] },
+    ]
+    const editable = toEditableGroups(dto, makeKey)
+    editable[0]!.values[0]!.name = 'A new name'
+    const result = buildOptionsPayload(editable)
+    expect(result).toMatchObject({ ok: true, groups: [
+      { required: true, minSelect: 2, maxSelect: 3 },
+      { required: false, minSelect: 1, maxSelect: 2 },
+    ] })
+    editable[0]!.preset = 'single-optional'
+    const changed = buildOptionsPayload(editable)
+    expect(changed.ok).toBe(true)
+    if (changed.ok) expect(changed.groups[0]).toMatchObject({ required: false, minSelect: 0, maxSelect: 1 })
+    editable[0]!.preset = 'multi'
+    editable[0]!.presetChanged = true
+    const reset = buildOptionsPayload(editable)
+    expect(reset.ok).toBe(true)
+    if (reset.ok) expect(reset.groups[0]).toMatchObject({ required: false, minSelect: 0, maxSelect: 3 })
+  })
+
+  it('rejects option limits before sending to the API', () => {
+    expect(buildOptionsPayload(Array.from({ length: 11 }, (_, i) => group({ key: `g${i}`, name: `Group ${i}` }))))
+      .toMatchObject({ ok: false })
+    expect(buildOptionsPayload([group({ values: Array.from({ length: 31 }, (_, i) => ({ key: `v${i}`, name: `Value ${i}`, priceRaw: '', active: true })) })]))
+      .toMatchObject({ ok: false })
+    expect(buildOptionsPayload([group({ name: 'x'.repeat(61) })])).toMatchObject({ ok: false })
+    expect(buildOptionsPayload([group({ values: [{ key: 'v', name: 'x'.repeat(61), priceRaw: '', active: true }] })]))
+      .toMatchObject({ ok: false })
+  })
 })

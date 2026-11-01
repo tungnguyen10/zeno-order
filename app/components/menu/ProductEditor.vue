@@ -8,6 +8,7 @@ import type { CategoryDTO, OptionGroupDTO, ProductDTO } from '#shared/types/cata
 const NO_CATEGORY = '__none'
 
 const open = defineModel<boolean>('open', { default: false })
+const dirty = defineModel<boolean>('dirty', { default: false })
 const props = defineProps<{ product: ProductDTO | null, categories: CategoryDTO[], storeId: string }>()
 const emit = defineEmits<{ saved: [product: ProductDTO] }>()
 
@@ -18,11 +19,27 @@ const draft = reactive({ name: '', price: '', description: '', categoryId: NO_CA
 const groups = ref<EditableGroup[]>([])
 const imageUrl = ref<string | null>(null)
 const initialOptionsJson = ref('')
+const initialDraftJson = ref('')
 const error = ref('')
 const imageError = ref('')
 const saving = ref(false)
 const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+let session = 0
+
+const draftJson = computed(() => JSON.stringify(draft))
+const isDirty = computed(() => open.value && (draftJson.value !== initialDraftJson.value
+  || optionsJson(groups.value) !== initialOptionsJson.value || uploading.value || saving.value))
+watch(isDirty, value => { dirty.value = value }, { immediate: true, flush: 'sync' })
+
+const sheetOpen = computed({
+  get: () => open.value,
+  set: (value: boolean) => {
+    if (!value && (saving.value || uploading.value)) return
+    if (!value && isDirty.value && !window.confirm('Bạn có thay đổi chưa lưu. Đóng chỉnh sửa món?')) return
+    open.value = value
+  },
+})
 
 const categoryItems = computed(() => [
   { label: 'Không phân loại', value: NO_CATEGORY },
@@ -34,11 +51,18 @@ function optionsJson(source: EditableGroup[]): string {
   return built.ok ? JSON.stringify(built.groups) : ''
 }
 
+watch(() => props.storeId, () => {
+  session++
+  open.value = false
+  dirty.value = false
+})
+
 watch(
   [() => open.value, () => props.product?.id],
   ([isOpen]) => {
     const product = props.product
     if (!isOpen || !product) return
+    session++
     draft.name = product.name
     draft.price = String(product.basePriceVnd)
     draft.description = product.description ?? ''
@@ -47,6 +71,7 @@ watch(
     imageUrl.value = product.imageUrl
     imageError.value = ''
     initialOptionsJson.value = optionsJson(groups.value)
+    initialDraftJson.value = draftJson.value
     error.value = ''
   },
   { immediate: true },
@@ -67,7 +92,10 @@ function fail(message: string) {
 
 async function save() {
   const product = props.product
-  if (!product || saving.value) return
+  if (!product || saving.value || uploading.value) return
+  const requestSession = session
+  const requestStoreId = props.storeId
+  const current = () => session === requestSession && props.storeId === requestStoreId && props.product?.id === product.id
   const price = parseVndInput(draft.price)
   if (!draft.name.trim()) return fail('Nhập tên món')
   if (price === null || !vndSchema.safeParse(price).success) return fail('Nhập giá hợp lệ, ví dụ 35000 hoặc 35k')
@@ -77,7 +105,7 @@ async function save() {
   error.value = ''
   saving.value = true
   try {
-    let latest = await api<ProductDTO>(`/api/stores/${props.storeId}/products/${product.id}`, {
+    let latest = await api<ProductDTO>(`/api/stores/${requestStoreId}/products/${product.id}`, {
       method: 'PATCH',
       body: {
         name: draft.name.trim(),
@@ -86,19 +114,29 @@ async function save() {
         categoryId: draft.categoryId === NO_CATEGORY ? null : draft.categoryId,
       },
     })
-    if (JSON.stringify(options.groups) !== initialOptionsJson.value) {
-      const replaced = await api<{ optionGroups: OptionGroupDTO[] }>(`/api/stores/${props.storeId}/products/${product.id}/options`, {
-        method: 'PUT',
-        body: { groups: options.groups },
-      })
-      latest = { ...latest, optionGroups: replaced.optionGroups }
-    }
+    if (!current()) return
     emit('saved', latest)
+    initialDraftJson.value = draftJson.value
+    if (JSON.stringify(options.groups) !== initialOptionsJson.value) {
+      try {
+        const replaced = await api<{ optionGroups: OptionGroupDTO[] }>(`/api/stores/${requestStoreId}/products/${product.id}/options`, {
+          method: 'PUT', body: { groups: options.groups },
+        })
+        if (!current()) return
+        latest = { ...latest, optionGroups: replaced.optionGroups }
+        emit('saved', latest)
+        initialOptionsJson.value = JSON.stringify(options.groups)
+      }
+      catch (err) {
+        if (current()) error.value = `Thông tin món đã lưu, nhưng nhóm option chưa lưu. ${extractApiError(err).message}`
+        return
+      }
+    }
     toast.add({ color: 'success', title: 'Đã lưu món' })
     open.value = false
   }
   catch (err) {
-    error.value = extractApiError(err).message
+    if (current()) error.value = extractApiError(err).message
   }
   finally {
     saving.value = false
@@ -110,7 +148,10 @@ async function onFile(event: Event) {
   const file = input.files?.[0]
   input.value = ''
   const product = props.product
-  if (!file || !product) return
+  if (!file || !product || saving.value || uploading.value) return
+  const requestSession = session
+  const requestStoreId = props.storeId
+  const current = () => session === requestSession && props.storeId === requestStoreId && props.product?.id === product.id
   imageError.value = ''
   if (!(PRODUCT_IMAGE_TYPES as readonly string[]).includes(file.type) || file.size === 0) {
     imageError.value = 'Chỉ nhận ảnh JPG, PNG hoặc WebP'
@@ -125,11 +166,13 @@ async function onFile(event: Event) {
   try {
     const form = new FormData()
     form.append('file', file)
-    const result = await api<{ imageUrl: string }>(`/api/stores/${props.storeId}/products/${product.id}/image`, { method: 'POST', body: form })
+    const result = await api<{ imageUrl: string }>(`/api/stores/${requestStoreId}/products/${product.id}/image`, { method: 'POST', body: form })
+    if (!current()) return
     imageUrl.value = result.imageUrl
-    emit('saved', { ...product, imageUrl: result.imageUrl })
+    emit('saved', { ...props.product!, imageUrl: result.imageUrl })
   }
   catch (err) {
+    if (!current()) return
     const message = extractApiError(err).message
     imageError.value = message.includes('Loại file') ? 'Chỉ nhận ảnh JPG, PNG hoặc WebP' : message
   }
@@ -140,14 +183,14 @@ async function onFile(event: Event) {
 </script>
 
 <template>
-  <ZSheet v-model:open="open" :title="product ? `Sửa ${product.name}` : 'Sửa món'" description="Chỉnh thông tin, ảnh và các nhóm option của món.">
+  <ZSheet v-model:open="sheetOpen" :title="product ? `Sửa ${product.name}` : 'Sửa món'" description="Chỉnh thông tin, ảnh và các nhóm option của món.">
     <form id="product-editor" class="flex flex-col gap-4" novalidate @submit.prevent="save">
       <ZAlert v-if="error" color="error" :title="error" />
 
       <div class="flex items-center gap-3">
         <img v-if="imageUrl" :src="imageUrl" alt="Ảnh món" width="80" height="80" class="size-20 shrink-0 rounded-md object-cover">
         <div class="flex flex-col gap-1">
-          <ZButton variant="secondary" icon="i-lucide-image-plus" :loading="uploading" @click="fileInput?.click()">
+          <ZButton variant="secondary" icon="i-lucide-image-plus" :loading="uploading" :disabled="saving" @click="fileInput?.click()">
             {{ imageUrl ? 'Đổi ảnh' : 'Thêm ảnh' }}
           </ZButton>
           <p class="text-[13px] text-muted">
@@ -189,7 +232,7 @@ async function onFile(event: Event) {
     </form>
 
     <template #footer>
-      <ZButton type="submit" form="product-editor" size="lg" block :loading="saving">
+      <ZButton type="submit" form="product-editor" size="lg" block :loading="saving" :disabled="uploading">
         Lưu món
       </ZButton>
     </template>

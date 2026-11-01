@@ -1,10 +1,26 @@
 <script setup lang="ts">
-import { PRESET_LABELS, type EditableGroup, type GroupPreset } from '#shared/option-presets'
+import { PRESET_LABELS, rulesOf, type EditableGroup, type GroupPreset } from '#shared/option-presets'
 
 const group = defineModel<EditableGroup>({ required: true })
 defineEmits<{ remove: [] }>()
 
 const presetItems = (Object.keys(PRESET_LABELS) as GroupPreset[]).map(value => ({ label: PRESET_LABELS[value], value }))
+const presetModel = computed({
+  get: () => group.value.preset,
+  set: (value: GroupPreset) => {
+    group.value.preset = value
+    group.value.presetChanged = true
+  },
+})
+const preservedRules = computed(() => {
+  const current = group.value
+  if (!current.originalRules || current.presetChanged || current.preset !== current.originalPreset) return null
+  const standard = rulesOf(current.preset, current.values.filter(value => value.name.trim()).length)
+  const original = current.originalRules
+  return original.required !== standard.required || original.minSelect !== standard.minSelect || original.maxSelect !== standard.maxSelect
+    ? original
+    : null
+})
 
 function addValue() {
   group.value.values.push({ key: crypto.randomUUID(), name: '', priceRaw: '', active: true })
@@ -27,8 +43,11 @@ function removeValue(key: string) {
       <ZButton variant="ghost" square icon="i-lucide-trash-2" aria-label="Xoá nhóm option" @click="$emit('remove')" />
     </div>
     <ZFormField label="Cách chọn">
-      <ZSelect v-model="group.preset" :items="presetItems" aria-label="Cách chọn" />
+      <ZSelect v-model="presetModel" :items="presetItems" aria-label="Cách chọn" />
     </ZFormField>
+    <p v-if="preservedRules" class="text-sm text-muted">
+      Đang giữ quy tắc đã lưu: tối thiểu {{ preservedRules.minSelect }}, tối đa {{ preservedRules.maxSelect }} lựa chọn{{ preservedRules.required ? ', bắt buộc' : '' }}. Đổi cách chọn để áp dụng mẫu mới.
+    </p>
 
     <ul class="flex flex-col gap-3">
       <li v-for="value in group.values" :key="value.key" class="flex flex-col gap-2 rounded-md bg-(--zeno-surface-inset) p-3">

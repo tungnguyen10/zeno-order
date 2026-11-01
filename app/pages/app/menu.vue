@@ -10,6 +10,14 @@ const { storeId, categories, products, status, refresh, addProduct, addCategory,
 const isOwner = computed(() => activeStore.value?.role === 'OWNER')
 const editing = ref<ProductDTO | null>(null)
 const editorOpen = ref(false)
+const editorDirty = ref(false)
+useUnsavedChangesGuard(computed(() => editorOpen.value && editorDirty.value))
+
+watch(storeId, () => {
+  editorOpen.value = false
+  editing.value = null
+  editorDirty.value = false
+})
 
 function openEditor(product: ProductDTO) {
   editing.value = product
@@ -52,6 +60,7 @@ async function setAvailable(product: ProductDTO, value: boolean) {
     <MenuProductEditor
       v-if="isOwner && activeStore"
       v-model:open="editorOpen"
+      v-model:dirty="editorDirty"
       :product="editing"
       :categories="categories"
       :store-id="activeStore.id"
