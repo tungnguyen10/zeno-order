@@ -5,23 +5,14 @@ useHead({ title: 'Đơn hàng' })
 const config = useRuntimeConfig()
 const { activeStore } = useActiveStore()
 const publicUrl = computed(() => (activeStore.value ? `${config.public.appBaseUrl}/s/${activeStore.value.slug}` : ''))
+const viewPath = computed(() => (activeStore.value ? `/s/${activeStore.value.slug}` : ''))
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
     <AppPageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn của quán." />
 
-    <ZAlert
-      v-if="activeStore && !activeStore.isAcceptingOrders"
-      color="warning"
-      title="Quán đang tạm nghỉ — khách không đặt được món"
-    >
-      <template #actions>
-        <ZButton variant="secondary" size="sm" to="/app/settings">
-          Bật nhận đơn
-        </ZButton>
-      </template>
-    </ZAlert>
+    <AppStoreStatusAlert />
 
     <ZCard variant="raised" padding="lg">
       <AppEmptyState
@@ -31,8 +22,8 @@ const publicUrl = computed(() => (activeStore.value ? `${config.public.appBaseUr
       >
         <template #actions>
           <AppCopyField v-if="publicUrl" :value="publicUrl" label="Link đặt món" />
-          <ZButton variant="secondary" block icon="i-lucide-settings" to="/app/settings">
-            Mở cài đặt
+          <ZButton v-if="viewPath" variant="secondary" block icon="i-lucide-external-link" :to="viewPath" target="_blank">
+            Xem trang khách
           </ZButton>
         </template>
       </AppEmptyState>
