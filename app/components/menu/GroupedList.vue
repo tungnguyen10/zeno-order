@@ -4,7 +4,7 @@ import { formatVnd } from '#shared/money'
 import type { CategoryDTO, ProductDTO } from '#shared/types/catalog'
 
 const props = defineProps<{ categories: CategoryDTO[], products: ProductDTO[], isOwner: boolean }>()
-const emit = defineEmits<{ toggleAvailability: [product: ProductDTO, value: boolean] }>()
+const emit = defineEmits<{ toggleAvailability: [product: ProductDTO, value: boolean], edit: [product: ProductDTO] }>()
 const sections = computed(() => groupByCategory(props.categories, props.products, { uncategorizedLabel: 'Chưa phân loại' }))
 </script>
 
@@ -24,12 +24,17 @@ const sections = computed(() => groupByCategory(props.categories, props.products
             <p class="font-mono text-sm text-muted">{{ formatVnd(product.basePriceVnd) }}</p>
           </div>
         </div>
-        <ZSwitch
-          :model-value="product.isAvailable"
-          :disabled="!isOwner"
-          label="Còn hàng"
-          @update:model-value="emit('toggleAvailability', product, $event)"
-        />
+        <div class="flex items-center gap-2">
+          <ZSwitch
+            :model-value="product.isAvailable"
+            :disabled="!isOwner"
+            label="Còn hàng"
+            @update:model-value="emit('toggleAvailability', product, $event)"
+          />
+          <ZButton v-if="isOwner" variant="ghost" size="sm" icon="i-lucide-pencil" :aria-label="`Sửa ${product.name}`" @click="emit('edit', product)">
+            Sửa
+          </ZButton>
+        </div>
       </li>
     </ul>
   </section>

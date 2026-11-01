@@ -55,3 +55,57 @@ test('owner creates a category and files a product under it', async ({ page }, t
   await expect(page.getByRole('heading', { level: 2, name: 'Trà sữa' })).toBeVisible()
   await expect(page.getByText('39.000đ')).toBeVisible()
 })
+
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+)
+
+test('owner configures size options and an image, and the public menu reflects both', async ({ page }, testInfo) => {
+  const { slug } = await signUpAndOnboard(page, testInfo, 'Quán Option')
+  await page.goto('/app/menu')
+  await page.getByLabel('Tên món').fill('Trà sữa')
+  await page.getByLabel('Giá (đ)').fill('30k')
+  await page.getByRole('button', { name: 'Thêm món' }).click()
+
+  await page.getByRole('button', { name: 'Sửa Trà sữa' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: 'Thêm nhóm option' }).click()
+  await dialog.getByLabel('Tên nhóm').fill('Size')
+  await dialog.getByLabel('Tên lựa chọn').first().fill('M')
+  await dialog.getByRole('button', { name: 'Thêm lựa chọn' }).click()
+  await dialog.getByLabel('Tên lựa chọn').nth(1).fill('L')
+  await dialog.getByLabel('Giá cộng thêm').nth(1).fill('5k')
+
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'tra-sua.png', mimeType: 'image/png', buffer: PNG_1X1 })
+  await expect(dialog.getByRole('img', { name: 'Ảnh món' })).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Lưu món' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('listitem').filter({ hasText: 'Trà sữa' }).locator('img')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Sửa Trà sữa' }).click()
+  await expect(page.getByRole('dialog').getByLabel('Tên nhóm')).toHaveValue('Size')
+  await page.keyboard.press('Escape')
+
+  const menu = await (await page.request.get(`/api/public/stores/${slug}/menu`)).json()
+  const product = menu.products[0]
+  expect(product.imageUrl).toMatch(/\.png$/)
+  expect(product.optionGroups[0]).toMatchObject({ name: 'Size', required: true, minSelect: 1, maxSelect: 1 })
+  expect(product.optionGroups[0].values.map((v: { name: string, priceDeltaVnd: number }) => [v.name, v.priceDeltaVnd])).toEqual([['M', 0], ['L', 5000]])
+})
+
+test('a text file renamed .png is rejected by the editor upload and nothing is stored', async ({ page }, testInfo) => {
+  const { slug } = await signUpAndOnboard(page, testInfo, 'Quán Ảnh Giả')
+  await page.goto('/app/menu')
+  await page.getByLabel('Tên món').fill('Cà phê')
+  await page.getByLabel('Giá (đ)').fill('25k')
+  await page.getByRole('button', { name: 'Thêm món' }).click()
+  await page.getByRole('button', { name: 'Sửa Cà phê' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('input[type=file]').setInputFiles({ name: 'evil.png', mimeType: 'image/png', buffer: Buffer.from('not an image') })
+  await expect(page.getByText('Chỉ nhận ảnh JPG, PNG hoặc WebP')).toBeVisible()
+  await expect(dialog.getByRole('img', { name: 'Ảnh món' })).toHaveCount(0)
+  const menu = await (await page.request.get(`/api/public/stores/${slug}/menu`)).json()
+  expect(menu.products[0].imageUrl).toBeNull()
+})

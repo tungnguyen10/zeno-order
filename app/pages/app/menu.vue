@@ -6,8 +6,20 @@ useHead({ title: 'Thực đơn' })
 
 const toast = useToast()
 const { activeStore } = useActiveStore()
-const { storeId, categories, products, status, refresh, addProduct, addCategory, patchProduct } = useMenuAdmin()
+const { storeId, categories, products, status, refresh, addProduct, addCategory, patchProduct, replaceProduct } = useMenuAdmin()
 const isOwner = computed(() => activeStore.value?.role === 'OWNER')
+const editing = ref<ProductDTO | null>(null)
+const editorOpen = ref(false)
+
+function openEditor(product: ProductDTO) {
+  editing.value = product
+  editorOpen.value = true
+}
+
+function onSaved(product: ProductDTO) {
+  replaceProduct(product)
+  if (editing.value?.id === product.id) editing.value = product
+}
 
 async function setAvailable(product: ProductDTO, value: boolean) {
   try {
@@ -36,6 +48,14 @@ async function setAvailable(product: ProductDTO, value: boolean) {
     <ZCard v-else-if="products.length === 0" variant="raised" padding="lg">
       <AppEmptyState icon="i-lucide-utensils-crossed" title="Chưa có món nào" description="Gõ tên và giá ở ô phía trên để thêm món đầu tiên." />
     </ZCard>
-    <MenuGroupedList v-else :categories="categories" :products="products" :is-owner="isOwner" @toggle-availability="setAvailable" />
+    <MenuGroupedList v-else :categories="categories" :products="products" :is-owner="isOwner" @toggle-availability="setAvailable" @edit="openEditor" />
+    <MenuProductEditor
+      v-if="isOwner && activeStore"
+      v-model:open="editorOpen"
+      :product="editing"
+      :categories="categories"
+      :store-id="activeStore.id"
+      @saved="onSaved"
+    />
   </div>
 </template>
