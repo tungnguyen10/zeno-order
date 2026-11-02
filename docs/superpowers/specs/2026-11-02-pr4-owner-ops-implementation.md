@@ -4,7 +4,7 @@ Implements the existing V1 owner-operations design and PR4 plan on top of PR3 (`
 
 ## Delivered behavior
 
-- Mobile order board with status tabs, cursor pagination, order snapshots/contact details and event history. One-tap fulfillment actions, cash collection, cancellation with a required reason and role-aware refund handling.
+- Mobile order board with status tabs, cursor pagination, order snapshots/contact details and event history. Existing one-tap enabling of order acceptance and opening the customer page are preserved. One-tap fulfillment actions, cash collection, cancellation with a required reason and role-aware refund handling.
 - Atomic status/payment updates and audit events. Expected-state predicates produce `409 STATUS_CONFLICT`; concurrent collections create exactly one payment. Staff cannot cancel a paid order; an owner cancellation moves its payment status to `REFUND_DUE`.
 - Five-second polling while visible, optional sound after interaction, new-order notifications and tab counts. Offline refresh keeps existing cards and warns even on an empty board. Generation guards prevent old store/tab/page responses and completed mutations from overwriting a newer view.
 - Owner team management: create an invitation link once, revoke pending invitations, disable/re-enable staff. Tokens contain 32 random bytes, only SHA-256 hashes are stored, and links expire after seven days and are consumed once.
@@ -27,8 +27,10 @@ PR5/PR6 can reuse `listBoard`, the `awaiting_payment` tab, `newOrderIds`, `statu
 - Unit/Nuxt: 1,010 tests across 89 files passed.
 - Full integration: 256 tests across 26 files passed on the verified test branch.
 - API tenant matrix: 246 tests passed, including the new routes' owner/staff/other-store/disabled/anonymous cases. The other 45 API cases passed in the full API run.
-- New owner/staff E2E: 4/4 passed on mobile Chrome and Safari against the production build, with a 360×740 viewport and touch-target/overflow checks.
+- Browser E2E: 108 distinct scenarios verified on mobile Chrome and Safari against the production build (100 unaffected regressions plus 8 affected scenarios after the quick-action fix). Includes owner/staff operations, menu/catalog journey, checkout/tracking, auth/settings and 360×740 touch-target/overflow checks.
 - Independent code review: no unresolved Critical/Important findings; the reported asynchronous board races have failing-before/passing-after regressions.
+
+The existing quick-action regression caught the initial plan's static settings link replacing the one-tap enable button. The orders page now reuses `AppStoreStatusAlert`; all 8 affected owner/catalog-journey scenarios passed after rebuilding.
 
 The conflict browser test waits for the owner's successful HTTP update before clicking the staff's deliberately stale card. Optimistic card removal alone does not prove the first transaction committed, and Safari correctly exposed that test synchronization error.
 
@@ -36,5 +38,6 @@ Browser verification uses the built server with the ignored test environment:
 
 ```sh
 NITRO_PORT=3100 node --env-file=.env.test .output/server/index.mjs
-npx playwright test tests/e2e/owner-ops.spec.ts --workers=2
+npx playwright test --grep-invert 'owner and staff serve a COD order end to end|an invitation link used with the wrong account' --workers=2
+npx playwright test tests/e2e/owner-ops.spec.ts tests/e2e/owner-quick-actions.spec.ts tests/e2e/catalog-journey.spec.ts --workers=2
 ```

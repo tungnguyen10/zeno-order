@@ -12,7 +12,7 @@
 
 ## Đối chiếu khi thực thi PR4 (2026-11-02)
 
-Code PR3 thực tế **chưa có** `orders_board_idx`; `0003_owner_ops` bổ sung index vào `server/db/schema/ordering.ts` cùng bảng `order_payments`. Những ghi chú bên dưới nói index đã có từ PR3 là giả định trước khi đối chiếu. UI team/reports được tách thành component nhỏ; quy trình trạng thái và response API giữ nguyên. Thay vì tạo helper UUID trùng, tái sử dụng `server/utils/ids.ts`.
+Code PR3 thực tế **chưa có** `orders_board_idx`; `0003_owner_ops` bổ sung index vào `server/db/schema/ordering.ts` cùng bảng `order_payments`. Những ghi chú bên dưới nói index đã có từ PR3 là giả định trước khi đối chiếu. UI team/reports được tách thành component nhỏ; quy trình trạng thái và response API giữ nguyên. Thay vì tạo helper UUID trùng, tái sử dụng `server/utils/ids.ts`. Bảng đơn dùng lại `AppStoreStatusAlert` để giữ nút bật nhận đơn một chạm của PR3; không thay bằng link vào settings. Kết quả thực thi và xác minh xem [PR4 implementation](../specs/2026-11-02-pr4-owner-ops-implementation.md).
 
 ## Global Constraints
 

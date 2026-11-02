@@ -50,17 +50,7 @@ const EMPTY: Record<string, string> = {
       </template>
     </AppPageHeader>
 
-    <ZAlert
-      v-if="activeStore && !activeStore.isAcceptingOrders"
-      color="warning"
-      title="Quán đang tạm nghỉ — khách không đặt được món"
-    >
-      <template #actions>
-        <ZButton v-if="role === 'OWNER'" variant="secondary" size="sm" to="/app/settings">
-          Bật nhận đơn
-        </ZButton>
-      </template>
-    </ZAlert>
+    <AppStoreStatusAlert />
 
     <AppBoardTabs v-model="tab" :counts="counts" />
 
