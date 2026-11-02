@@ -190,16 +190,27 @@ Nuxt UI v4, mobile-first (360px), tiếng Việt.
 | `/invite/[token]` | nhận lời mời staff |
 | `/app/orders` | O1 board + O2 chi tiết (slide-over), nút gọi `tel:` |
 | `/app/menu` | O3 danh mục/món/option/ảnh |
-| `/app/settings` | O4 tabs: Cửa hàng · Nhận món & khu vực giao · Bàn & QR (in/tải PNG, regenerate/revoke) · Thanh toán & SePay (owner) · Nhân viên (owner) |
+| `/app/settings` | O4 tabs: Cửa hàng · Nhận món & khu vực giao · Bàn & QR (in/tải PNG, regenerate/revoke) · Thanh toán & SePay (owner) |
 | `/app/reconciliation` | đối soát (owner) |
-| `/app/reports` | O5 |
+| `/app/reports` | O5: tổng kết ngày (owner/staff), xu hướng và top món (owner) |
+| `/app/team` | quản lý nhân viên và lời mời (owner), tách khỏi settings |
 
 - `useActiveStore`: store switcher khi >1 store, lưu cookie; ẩn khi 1 store.
 - Loading/empty/error ở mọi màn; bottom sheet focus trap; label đầy đủ; target ≥ 44px; ảnh `loading="lazy"` có kích thước cố định.
-- Mời staff: owner nhập email + store → hiển thị link `/invite/<token>` (hết hạn 7 ngày) để tự gửi; người nhận đăng nhập bằng email trùng khớp → thêm `store_members`. Không gửi email ở V1.
+- Mời staff: owner nhập email + store → hiển thị link `/invite/<token>` (hết hạn 7 ngày) để tự gửi; người nhận đăng nhập bằng email trùng khớp → thêm `store_members`. Không gửi email ở V1. Token 32 byte chỉ lưu SHA-256, link trả một lần, dùng một lần. Nhận lời mời chạy trong transaction cùng `ensureProfile`; email phải khớp sau chuẩn hóa và mặc định phải được xác minh (`INVITE_REQUIRE_VERIFIED_EMAIL=true`). Chỉ môi trường test cô lập được đặt cờ này thành `false`.
 
 ## 8. Reporting
 `GET /api/stores/:id/summary?date=YYYY-MM-DD` theo ngày `Asia/Ho_Chi_Minh`: tổng đơn, hoàn tất, hủy, tổng giá trị đơn (không tính CANCELLED), **đã thu** tách `SEPAY` / `CASH` / `BANK_MANUAL` (từ `order_payments`), còn chưa thu. Owner lọc theo store; staff chỉ store được cấp.
+
+`GET /api/stores/:id/reports?range=today|7d|30d` chỉ owner: tổng giá trị, đã thu, giá trị đơn trung bình, top món theo snapshot và chuỗi ngày theo giờ Việt Nam. Các khoản thu được nhóm theo ngày tạo đơn, bỏ đơn hủy; số tiền cần hoàn lấy từ khoản thanh toán có thật.
+
+### Quyết định triển khai PR4
+
+- Bảng đơn poll lại trang đầu mỗi 5 giây khi tab hiển thị; giữ dữ liệu cũ kèm cảnh báo khi mất mạng. Cursor dùng nguyên độ chính xác micro giây của Postgres và cặp `(created_at, id)`.
+- `PATCH /api/stores/:id/orders/:orderId/status` chỉ tiến trạng thái hợp lệ; `CANCELLED` đi qua `POST …/cancel`, bắt buộc lý do. Mọi cập nhật và event nằm trong cùng transaction, kiểm tra trạng thái mong đợi; xung đột trả `409 STATUS_CONFLICT`.
+- `POST …/mark-paid` chỉ nhận `CASH` cho đơn COD chưa thu, lưu đúng tổng tiền server trong `order_payments` cùng event. Hủy đơn đã thu chỉ owner, chuyển `REFUND_DUE`. Unique `order_payments(order_id)` bảo vệ mỗi đơn một khoản thu; PR6 bổ sung FK và unique có điều kiện cho `bank_transaction_id`.
+- Token trong đường dẫn API lời mời được che bởi `redactPath(safePath(path))` trước khi log lỗi.
+- Migration `0003_owner_ops` tạo `order_payments` và index `orders_board_idx`; index này chưa có trong code PR3 thực tế dù bản kế hoạch PR4 ban đầu giả định đã tồn tại.
 
 ## 9. Error codes
 `VALIDATION_FAILED` 400 · `UNAUTHENTICATED` 401 · `FORBIDDEN` 403 · `NOT_FOUND` 404 · `STATUS_CONFLICT`, `CART_STALE`, `SLUG_TAKEN`, `ORG_EXISTS` 409 · `STORE_CLOSED`, `MODE_DISABLED`, `INVALID_TABLE`, `INVALID_ZONE`, `PAYMENT_METHOD_UNAVAILABLE` 422 · `RATE_LIMITED` 429 · `INTERNAL` 500 · `SERVICE_UNAVAILABLE` 503.

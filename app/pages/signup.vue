@@ -15,13 +15,14 @@ const state = reactive<Partial<Schema>>({ name: '', email: '', password: '' })
 const errorMessage = ref<string | null>(null)
 const loading = ref(false)
 const { signUp } = useAuth()
+const route = useRoute()
 
 async function onSubmit(event: FormSubmitEvent<Schema>) {
   loading.value = true
   errorMessage.value = null
   try {
     await signUp(event.data.name, event.data.email, event.data.password)
-    await navigateTo('/onboarding')
+    await navigateTo(afterSignUpTarget(route.query.redirect))
   }
   catch (err) {
     errorMessage.value = err instanceof AuthFailure ? err.message : 'Đăng ký thất bại, vui lòng thử lại'
@@ -72,7 +73,7 @@ const strengthBar: Record<number, string> = {
     </UForm>
     <template #footer>
       Đã có tài khoản?
-      <NuxtLink to="/login" class="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline-offset-4 hover:underline">
+      <NuxtLink :to="{ path: '/login', query: typeof route.query.redirect === 'string' ? { redirect: route.query.redirect } : {} }" class="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline-offset-4 hover:underline">
         Đăng nhập
       </NuxtLink>
     </template>
