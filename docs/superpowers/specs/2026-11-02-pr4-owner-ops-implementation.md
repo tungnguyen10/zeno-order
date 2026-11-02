@@ -41,3 +41,9 @@ NITRO_PORT=3100 node --env-file=.env.test .output/server/index.mjs
 npx playwright test --grep-invert 'owner and staff serve a COD order end to end|an invitation link used with the wrong account' --workers=2
 npx playwright test tests/e2e/owner-ops.spec.ts tests/e2e/owner-quick-actions.spec.ts tests/e2e/catalog-journey.spec.ts --workers=2
 ```
+
+## CI timing reliability
+
+The first complete CI integration run passed 254/256 cases; two pre-existing checkout rate-limit cases exceeded the global 30-second test budget. The full suite took 1,021 seconds on the runner versus about 250 seconds locally. The rate-limit suite now has a targeted 120-second per-test budget for its ten real, serial checkout transactions; other integration tests keep the global 30-second limit. Only `Date` is fixed within that suite so it stays in one ten-minute window; database connections, counters, transactions and networking timers remain real.
+
+All ten checkouts and the 429/replay checks remain. Additional assertions verify that replay does not spend another rate count, rejected carts create no orders, and exhausting one store does not throttle another store. Covering validation passed: 41 checkout/rate-limit tests, followed by 9 clock/rate-limit/replay cases after fixing the clock, plus targeted lint.

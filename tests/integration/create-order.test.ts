@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { count, eq } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { checkoutInputSchema, type CheckoutBody } from '#shared/schemas/checkout'
 import { closeDb, getDb } from '../../server/db/client'
 import { deliveryZones, orderEvents, orderItems, orders, productOptionValues, products, rateLimits, storeTables, stores } from '../../server/db/schema'
@@ -320,7 +320,16 @@ describe('createOrder — idempotency (Review Focus #8)', () => {
   })
 })
 
-describe('createOrder — rate limit', () => {
+// These cases execute ten real checkout transactions serially against one rate-limit row.
+// CI's remote DB round trips are slower than local; keep all ten checkouts and their assertions.
+describe('createOrder — rate limit', { timeout: 120_000 }, () => {
+  beforeEach(() => {
+    // Freeze the rate window, but leave socket and timeout timers real.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-31T10:03:20Z'))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
   it('allows 10 orders per ip+store per window, then 429, but still replays old keys', async () => {
     const firstBody = pickupBody(menu)
     const first = await place(firstBody)
@@ -330,7 +339,9 @@ describe('createOrder — rate limit', () => {
     expect(error).toMatchObject({ code: 'RATE_LIMITED', status: 429 })
     expect(await countOf(orders)).toBe(10)
 
+    const spent = await getDb().select().from(rateLimits)
     expect((await place(firstBody)).response).toEqual(first.response)
+    expect(await getDb().select().from(rateLimits)).toEqual(spent)
     await place(pickupBody(menu), { ip: '198.51.100.9' })
     expect(await countOf(orders)).toBe(11)
   })
@@ -338,6 +349,7 @@ describe('createOrder — rate limit', () => {
   it('counts rejected carts too, so spamming invalid orders is not free', async () => {
     for (let i = 0; i < 10; i++) await appError(place(pickupBody(menu, { expectedTotalVnd: 1 })))
     expect((await appError(place(pickupBody(menu)))).code).toBe('RATE_LIMITED')
+    expect(await countOf(orders)).toBe(0)
   })
 
   it('tracks the limit per store', async () => {
@@ -345,7 +357,9 @@ describe('createOrder — rate limit', () => {
     await openStore(other.id)
     const otherMenu = await seedMenu(other)
     for (let i = 0; i < 10; i++) await place(pickupBody(menu))
-    await place(pickupBody(otherMenu), { slug: other.slug })
+    expect(await appError(place(pickupBody(menu)))).toMatchObject({ code: 'RATE_LIMITED', status: 429 })
+    expect((await place(pickupBody(otherMenu), { slug: other.slug })).replayed).toBe(false)
+    expect(await countOf(orders)).toBe(11)
   })
 })
 
