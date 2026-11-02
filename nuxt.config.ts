@@ -45,7 +45,7 @@ export default defineNuxtConfig({
   },
   vite: {
     // The auth client is imported lazily; pre-bundle it so the dev server doesn't re-optimize and reload mid-navigation.
-    optimizeDeps: { include: ['@neon/auth', 'zod'] },
+    optimizeDeps: { include: ['@neon/auth', 'zod', 'qrcode'] },
   },
   nitro: {
     compressPublicAssets: { gzip: true, brotli: true },

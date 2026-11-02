@@ -135,6 +135,7 @@ async function save() {
       </form>
 
       <SettingsFulfillmentTab v-if="tab === 'fulfillment'" :key="store.id" :store="store" @changed="onFulfillmentChanged" />
+      <SettingsTablesTab v-if="tab === 'tables'" :key="store.id" :store="store" />
 
       <div
         v-if="isOwner && tab === 'store'"
