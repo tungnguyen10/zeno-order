@@ -1,3 +1,4 @@
+import { createOrderRow } from '../support/order-fixtures'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { fetch, setup } from '@nuxt/test-utils/e2e'
@@ -13,6 +14,8 @@ import { deliveryBody, dineInBody, openStore, pickupBody, seedMenu, teaItem, typ
 
 const auth = await createTestAuth()
 process.env.AUTH_TEST_JWKS = auth.jwksJson
+// Mặc định production: bắt buộc email đã xác minh khi nhận lời mời (spec quy ước xuyên PR #7).
+process.env.INVITE_REQUIRE_VERIFIED_EMAIL = 'true'
 
 await setup({
   rootDir: fileURLToPath(new URL('../..', import.meta.url)),
@@ -639,5 +642,426 @@ describe('public ordering routes: identity is irrelevant, stores never leak', ()
       expect([a.status, b.status]).toEqual([201, 201])
       expect(a.body.guestToken).not.toBe(b.body.guestToken)
     })
+  })
+})
+
+
+// ───────────────────────── PR4: owner ops ─────────────────────────
+const ops = {} as { orderA1: string, orderB: string, orgB: string }
+
+beforeAll(async () => {
+  const [storeB] = await getDb().select({ orgId: stores.orgId }).from(stores).where(eq(stores.id, ids.storeB))
+  ops.orgB = storeB!.orgId
+  ops.orderA1 = (await createOrderRow({ id: ids.storeA1, orgId: ids.orgA }, { status: 'NEW' })).id
+  ops.orderB = (await createOrderRow({ id: ids.storeB, orgId: ops.orgB }, { status: 'NEW' })).id
+})
+
+const freshOrder = (overrides: Parameters<typeof createOrderRow>[1] = {}) =>
+  createOrderRow({ id: ids.storeA1, orgId: ids.orgA }, overrides)
+const orderStatusOf = async (orderId: string) =>
+  (await call('GET', `/api/stores/${ids.storeA1}/orders/${orderId}`, tokens.ownerA)).body.order as { status: string, paymentStatus: string }
+
+const staffSees: [Actor, number][] = [['ownerA', 200], ['staffA1', 200], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]]
+
+describe('GET /api/stores/:storeId/orders', () => {
+  it('without token → 401', async () => {
+    expect(await call('GET', `/api/stores/${ids.storeA1}/orders?tab=new`, null)).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+  })
+
+  it.each(staffSees)('%s → %i', async (actor, status) => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/orders?tab=new`, tokens[actor])
+    expect(res.status).toBe(status)
+    if (status === 200) {
+      const listed = (res.body.orders as { id: string }[]).map(o => o.id)
+      expect(listed).toContain(ops.orderA1)
+      expect(listed).not.toContain(ops.orderB)
+      expect(JSON.stringify(res.body)).not.toMatch(/guestToken|idempotencyKey/i)
+    }
+    else {
+      expect(res.body).toMatchObject({ code: errorCodes[status] })
+    }
+  })
+
+  it('treats another tenant\'s real store exactly like a random id', async () => {
+    const real = await call('GET', `/api/stores/${ids.storeA1}/orders?tab=new`, tokens.ownerB)
+    const random = await call('GET', `/api/stores/${randomUUID()}/orders?tab=new`, tokens.ownerB)
+    expect(real).toEqual(random)
+  })
+
+  it.each(['/orders', '/orders?tab=zzz', '/orders?tab=new&cursor=@@@', '/orders?tab=new&limit=0'])('%s → 400', async (suffix) => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}${suffix}`, tokens.ownerA)
+    expect(res).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+})
+
+describe('GET /api/stores/:storeId/orders/:orderId', () => {
+  it.each(staffSees)('%s → %i', async (actor, status) => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/orders/${ops.orderA1}`, tokens[actor])
+    expect(res.status).toBe(status)
+    if (status === 200) expect(res.body).toMatchObject({ order: { id: ops.orderA1 }, events: [], payment: null })
+    else expect(res.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it('another store\'s order via my store path is 404, identical to a random id', async () => {
+    const foreign = await call('GET', `/api/stores/${ids.storeA1}/orders/${ops.orderB}`, tokens.ownerA)
+    const random = await call('GET', `/api/stores/${ids.storeA1}/orders/${randomUUID()}`, tokens.ownerA)
+    expect(foreign).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    expect(foreign).toEqual(random)
+  })
+
+  it('a non-uuid order id is 404, not 400/500', async () => {
+    expect(await call('GET', `/api/stores/${ids.storeA1}/orders/not-a-uuid`, tokens.ownerA)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+  })
+})
+
+describe('PATCH /api/stores/:storeId/orders/:orderId/status', () => {
+  const patch = (actor: Actor | null, orderId: string, body: unknown, storeId = ids.storeA1) =>
+    call('PATCH', `/api/stores/${storeId}/orders/${orderId}/status`, actor ? tokens[actor] : null, body)
+  const advance = { expectedStatus: 'NEW', nextStatus: 'PREPARING' }
+
+  it('without token → 401', async () => {
+    expect(await patch(null, ops.orderA1, advance)).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+  })
+
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 200], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])(
+    '%s → %i',
+    async (actor, status) => {
+      const order = await freshOrder()
+      const res = await patch(actor, order.id, advance)
+      expect(res.status).toBe(status)
+      if (status === 200) {
+        expect(res.body).toMatchObject({ id: order.id, status: 'PREPARING' })
+      }
+      else {
+        expect(res.body).toMatchObject({ code: errorCodes[status] })
+        expect((await orderStatusOf(order.id)).status).toBe('NEW')
+      }
+    },
+  )
+
+  it('another store\'s order through my store path → 404 and unchanged', async () => {
+    const res = await patch('ownerA', ops.orderB, advance)
+    expect(res).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+  })
+
+  it('stale expectedStatus → 409 STATUS_CONFLICT with the current status', async () => {
+    const order = await freshOrder({ status: 'PREPARING' })
+    expect(await patch('staffA1', order.id, advance)).toMatchObject({
+      status: 409,
+      body: { code: 'STATUS_CONFLICT', details: { currentStatus: 'PREPARING' } },
+    })
+  })
+
+  it.each([
+    [{ expectedStatus: 'NEW', nextStatus: 'COMPLETED' }, 400],
+    [{ expectedStatus: 'NEW', nextStatus: 'CANCELLED' }, 400],
+    [{ expectedStatus: 'NEW', nextStatus: 'NEW' }, 400],
+    [{ expectedStatus: 'NEW' }, 400],
+    [{ expectedStatus: 'BOGUS', nextStatus: 'READY' }, 400],
+  ])('invalid body %j → %i', async (body, status) => {
+    const order = await freshOrder()
+    expect(await patch('ownerA', order.id, body)).toMatchObject({ status, body: { code: 'VALIDATION_FAILED' } })
+  })
+
+  it('a non-uuid order id → 404', async () => {
+    expect(await patch('ownerA', 'not-a-uuid', advance)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+  })
+})
+
+describe('POST /api/stores/:storeId/orders/:orderId/cancel', () => {
+  const cancel = (actor: Actor | null, orderId: string, body: unknown) =>
+    call('POST', `/api/stores/${ids.storeA1}/orders/${orderId}/cancel`, actor ? tokens[actor] : null, body)
+  const unpaidBody = { expectedStatus: 'NEW', reason: 'Khách đổi ý' }
+
+  it('without token → 401', async () => {
+    expect(await cancel(null, ops.orderA1, unpaidBody)).toMatchObject({ status: 401 })
+  })
+
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 200], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])(
+    'unpaid order, %s → %i',
+    async (actor, status) => {
+      const order = await freshOrder()
+      const res = await cancel(actor, order.id, unpaidBody)
+      expect(res.status).toBe(status)
+      if (status === 200) expect(res.body).toMatchObject({ status: 'CANCELLED', paymentStatus: 'UNPAID' })
+      else expect((await orderStatusOf(order.id)).status).toBe('NEW')
+    },
+  )
+
+  it('paid order: staff → 403 and unchanged; owner → 200 REFUND_DUE', async () => {
+    const order = await freshOrder({ paymentStatus: 'PAID' })
+    expect(await cancel('staffA1', order.id, unpaidBody)).toMatchObject({ status: 403, body: { code: 'FORBIDDEN' } })
+    expect(await orderStatusOf(order.id)).toMatchObject({ status: 'NEW', paymentStatus: 'PAID' })
+    expect(await cancel('ownerA', order.id, unpaidBody)).toMatchObject({ status: 200, body: { status: 'CANCELLED', paymentStatus: 'REFUND_DUE' } })
+  })
+
+  it('another store\'s order → 404', async () => {
+    expect(await cancel('ownerA', ops.orderB, unpaidBody)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+  })
+
+  it.each([{ expectedStatus: 'NEW' }, { expectedStatus: 'NEW', reason: ' ' }, { expectedStatus: 'NEW', reason: 'x'.repeat(201) }])(
+    'invalid body %j → 400',
+    async (body) => {
+      const order = await freshOrder()
+      expect(await cancel('ownerA', order.id, body)).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    },
+  )
+
+  it('stale expectedStatus → 409', async () => {
+    const order = await freshOrder({ status: 'PREPARING' })
+    expect(await cancel('ownerA', order.id, unpaidBody)).toMatchObject({ status: 409, body: { code: 'STATUS_CONFLICT' } })
+  })
+})
+
+describe('POST /api/stores/:storeId/orders/:orderId/mark-paid', () => {
+  const markPaid = (actor: Actor | null, orderId: string, body: unknown = { expectedPaymentStatus: 'UNPAID', method: 'CASH' }) =>
+    call('POST', `/api/stores/${ids.storeA1}/orders/${orderId}/mark-paid`, actor ? tokens[actor] : null, body)
+
+  it('without token → 401', async () => {
+    expect(await markPaid(null, ops.orderA1)).toMatchObject({ status: 401 })
+  })
+
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 200], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])(
+    '%s → %i',
+    async (actor, status) => {
+      const order = await freshOrder()
+      const res = await markPaid(actor, order.id)
+      expect(res.status).toBe(status)
+      if (status === 200) expect(res.body).toMatchObject({ paymentStatus: 'PAID' })
+      else expect((await orderStatusOf(order.id)).paymentStatus).toBe('UNPAID')
+    },
+  )
+
+  it('second call → 409', async () => {
+    const order = await freshOrder()
+    expect((await markPaid('staffA1', order.id)).status).toBe(200)
+    expect(await markPaid('staffA1', order.id)).toMatchObject({ status: 409, body: { code: 'STATUS_CONFLICT' } })
+  })
+
+  it('another store\'s order → 404', async () => {
+    expect(await markPaid('ownerA', ops.orderB)).toMatchObject({ status: 404 })
+  })
+
+  it.each([{ expectedPaymentStatus: 'UNPAID', method: 'BANK_MANUAL' }, { expectedPaymentStatus: 'UNPAID' }, { method: 'CASH' }])(
+    'rejects %j with 400 (BANK_MANUAL is owner-only in PR6)',
+    async (body) => {
+      const order = await freshOrder()
+      expect(await markPaid('ownerA', order.id, body)).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+    },
+  )
+})
+
+describe('team endpoints (owner only)', () => {
+  const team = (actor: Actor | null, method: string, suffix = '', body?: unknown, storeId = ids.storeA1) =>
+    call(method, `/api/stores/${storeId}/team${suffix}`, actor ? tokens[actor] : null, body)
+
+  it('without token → 401', async () => {
+    expect(await team(null, 'GET')).toMatchObject({ status: 401 })
+  })
+
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])(
+    'GET team %s → %i',
+    async (actor, status) => {
+      const res = await team(actor, 'GET')
+      expect(res.status).toBe(status)
+      if (status === 200) {
+        expect(res.body.members.length).toBeGreaterThan(0)
+        expect(JSON.stringify(res.body)).not.toMatch(/tokenHash|token_hash|inviteUrl/)
+      }
+      else {
+        expect(res.body).toMatchObject({ code: errorCodes[status] })
+      }
+    },
+  )
+
+  it.each<[Actor, number]>([['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404], ['ownerA', 201]])(
+    'POST invitations %s → %i',
+    async (actor, status) => {
+      const email = `invite-${actor}-${Date.now()}@example.com`
+      const res = await team(actor, 'POST', '/invitations', { email })
+      expect(res.status).toBe(status)
+      if (status === 201) {
+        expect(res.body.inviteUrl).toMatch(/\/invite\/[A-Za-z0-9_-]{43}$/)
+        expect(res.body.invitation).toMatchObject({ email: email.toLowerCase(), expired: false })
+      }
+      else {
+        const listed = await team('ownerA', 'GET')
+        expect((listed.body.invitations as { email: string }[]).map(i => i.email)).not.toContain(email.toLowerCase())
+      }
+    },
+  )
+
+  it.each(['', 'not-an-email', 'a@'])('POST invitations rejects email %j → 400', async (email) => {
+    expect(await team('ownerA', 'POST', '/invitations', { email })).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+
+  it('PATCH member: staff → 403, other tenant → 404, owner disables then re-enables (and access follows immediately)', async () => {
+    const victim = await addStaff({ id: ids.storeA1, orgId: ids.orgA })
+    const victimToken = await auth.sign({ sub: victim.userId, email: victim.email })
+    const patch = (actor: Actor, status: string) => team(actor, 'PATCH', `/${victim.userId}`, { status })
+
+    expect((await patch('staffA1', 'DISABLED')).status).toBe(403)
+    expect((await patch('staffA2', 'DISABLED')).status).toBe(404)
+    expect((await patch('ownerB', 'DISABLED')).status).toBe(404)
+    expect((await call('GET', `/api/stores/${ids.storeA1}`, victimToken)).status).toBe(200)
+
+    expect(await patch('ownerA', 'DISABLED')).toMatchObject({ status: 200, body: { ok: true } })
+    expect(await call('GET', `/api/stores/${ids.storeA1}`, victimToken)).toMatchObject({ status: 404 })
+    expect(await patch('ownerA', 'ACTIVE')).toMatchObject({ status: 200 })
+    expect((await call('GET', `/api/stores/${ids.storeA1}`, victimToken)).status).toBe(200)
+  })
+
+  it('PATCH an unknown member → 404; invalid status → 400', async () => {
+    expect(await team('ownerA', 'PATCH', `/user_${randomUUID()}`, { status: 'DISABLED' })).toMatchObject({ status: 404 })
+    expect(await team('ownerA', 'PATCH', `/${randomUUID()}`, { status: 'BOGUS' })).toMatchObject({ status: 400 })
+  })
+
+  it('DELETE invitation: staff → 403, other tenant → 404, owner → 200, repeat → 404', async () => {
+    const created = await team('ownerA', 'POST', '/invitations', { email: `revoke-${Date.now()}@example.com` })
+    const id = created.body.invitation.id as string
+    expect((await team('staffA1', 'DELETE', `/invitations/${id}`)).status).toBe(403)
+    expect((await team('ownerB', 'DELETE', `/invitations/${id}`)).status).toBe(404)
+    expect((await team('ownerA', 'DELETE', `/invitations/${id}`)).status).toBe(200)
+    expect((await team('ownerA', 'DELETE', `/invitations/${id}`)).status).toBe(404)
+    expect((await team('ownerA', 'DELETE', '/invitations/not-a-uuid')).status).toBe(404)
+  })
+})
+
+describe('invitations (accept flow)', () => {
+  async function invite(email: string): Promise<string> {
+    const res = await call('POST', `/api/stores/${ids.storeA1}/team/invitations`, tokens.ownerA, { email })
+    expect(res.status).toBe(201)
+    return (res.body.inviteUrl as string).split('/').pop()!
+  }
+  const sign = (user: { userId: string, email: string }, emailVerified: boolean) => auth.sign({ sub: user.userId, email: user.email, emailVerified })
+
+  it('GET/POST without a login → 401', async () => {
+    const token = await invite(`anon-${Date.now()}@example.com`)
+    expect((await call('GET', `/api/invitations/${token}`, null)).status).toBe(401)
+    expect((await call('POST', `/api/invitations/${token}/accept`, null)).status).toBe(401)
+  })
+
+  it('unknown or malformed token → 404', async () => {
+    expect(await call('GET', '/api/invitations/nope', tokens.ownerB)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    expect(await call('POST', `/api/invitations/${'z'.repeat(43)}/accept`, tokens.ownerB)).toMatchObject({ status: 404 })
+  })
+
+  it('wrong email → 403 without burning the token; right + verified email → 200; reuse → 404', async () => {
+    const email = `flow-${Date.now()}@example.com`
+    const token = await invite(email)
+    const stranger = await createUser()
+    const invitee = await createUser({ email })
+
+    expect(await call('GET', `/api/invitations/${token}`, await sign(stranger, true))).toMatchObject({
+      status: 200,
+      body: { emailMatches: false, storeName: expect.any(String) },
+    })
+    expect(await call('POST', `/api/invitations/${token}/accept`, await sign(stranger, true))).toMatchObject({
+      status: 403,
+      body: { code: 'FORBIDDEN', details: { reason: 'EMAIL_MISMATCH' } },
+    })
+    expect(await call('POST', `/api/invitations/${token}/accept`, await sign(invitee, false))).toMatchObject({
+      status: 403,
+      body: { details: { reason: 'EMAIL_NOT_VERIFIED' } },
+    })
+
+    const inviteeToken = await sign(invitee, true)
+    expect(await call('GET', `/api/stores/${ids.storeA1}`, inviteeToken)).toMatchObject({ status: 404 })
+    const ok = await call('POST', `/api/invitations/${token}/accept`, inviteeToken)
+    expect(ok).toMatchObject({ status: 200, body: { store: { id: ids.storeA1, role: 'STAFF' } } })
+    expect(await call('GET', `/api/stores/${ids.storeA1}`, inviteeToken)).toMatchObject({ status: 200, body: { role: 'STAFF' } })
+    expect(await call('GET', `/api/stores/${ids.storeA2}`, inviteeToken)).toMatchObject({ status: 404 })
+    expect(await call('POST', `/api/invitations/${token}/accept`, inviteeToken)).toMatchObject({ status: 404 })
+  })
+
+  it('an invitation never exposes the full email to a non-matching caller', async () => {
+    const email = `hint-${Date.now()}@example.com`
+    const token = await invite(email)
+    const res = await call('GET', `/api/invitations/${token}`, tokens.ownerB)
+    expect(res.status).toBe(200)
+    expect(JSON.stringify(res.body)).not.toContain(email)
+    expect(res.body.emailHint).toMatch(/^h\*\*\*@example\.com$/)
+  })
+})
+
+describe('GET /api/stores/:storeId/summary', () => {
+  const summary = (actor: Actor | null, query = '', storeId = ids.storeA1) =>
+    call('GET', `/api/stores/${storeId}/summary${query}`, actor ? tokens[actor] : null)
+
+  it('without token → 401', async () => {
+    expect((await summary(null)).status).toBe(401)
+  })
+
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 200], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])(
+    '%s → %i',
+    async (actor, status) => {
+      const res = await summary(actor, '?date=2026-10-31')
+      expect(res.status).toBe(status)
+      if (status === 200) expect(res.body).toMatchObject({ date: '2026-10-31', totalOrders: expect.any(Number), collected: { CASH: expect.any(Number) } })
+      else expect(res.body).toMatchObject({ code: errorCodes[status] })
+    },
+  )
+
+  it.each(['?date=2026-02-30', '?date=31-10-2026', '?date='])('%s → 400', async (query) => {
+    expect(await summary('ownerA', query)).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+
+  it('defaults to today when no date is given', async () => {
+    const res = await summary('staffA1')
+    expect(res.status).toBe(200)
+    expect(res.body.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('GET /api/stores/:storeId/reports (owner only)', () => {
+  const reports = (actor: Actor | null, query = '?range=7d') => call('GET', `/api/stores/${ids.storeA1}/reports${query}`, actor ? tokens[actor] : null)
+
+  it('without token → 401', async () => {
+    expect((await reports(null)).status).toBe(401)
+  })
+
+  it.each<[Actor, number]>([['ownerA', 200], ['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]])(
+    '%s → %i',
+    async (actor, status) => {
+      const res = await reports(actor)
+      expect(res.status).toBe(status)
+      if (status === 200) expect(res.body).toMatchObject({ range: '7d', daily: expect.any(Array), topProducts: expect.any(Array) })
+      else expect(res.body).toMatchObject({ code: errorCodes[status] })
+    },
+  )
+
+  it('rejects an unknown range with 400', async () => {
+    expect(await reports('ownerA', '?range=90d')).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+})
+
+describe('PR4 remaining authentication and full team mutation matrix', () => {
+  it('requires a token for order detail and every team mutation', async () => {
+    const paths: [string, string, unknown?][] = [
+      ['GET', `/api/stores/${ids.storeA1}/orders/${ops.orderA1}`],
+      ['POST', `/api/stores/${ids.storeA1}/team/invitations`, { email: 'anonymous@example.com' }],
+      ['PATCH', `/api/stores/${ids.storeA1}/team/unknown`, { status: 'DISABLED' }],
+      ['DELETE', `/api/stores/${ids.storeA1}/team/invitations/${randomUUID()}`],
+    ]
+    for (const [method, path, body] of paths) {
+      expect(await call(method, path, null, body)).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+    }
+  })
+
+  const matrix: [Actor, number][] = [['ownerA', 200], ['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404]]
+
+  it.each(matrix)('PATCH member %s → %i', async (actor, status) => {
+    const member = await addStaff({ id: ids.storeA1, orgId: ids.orgA })
+    const result = await call('PATCH', `/api/stores/${ids.storeA1}/team/${member.userId}`, tokens[actor], { status: 'DISABLED' })
+    expect(result.status).toBe(status)
+    if (status !== 200) expect(result.body).toMatchObject({ code: errorCodes[status] })
+  })
+
+  it.each(matrix)('DELETE invitation %s → %i', async (actor, status) => {
+    const created = await call('POST', `/api/stores/${ids.storeA1}/team/invitations`, tokens.ownerA, { email: `matrix-${randomUUID()}@example.com` })
+    expect(created.status).toBe(201)
+    const result = await call('DELETE', `/api/stores/${ids.storeA1}/team/invitations/${created.body.invitation.id}`, tokens[actor])
+    expect(result.status).toBe(status)
+    if (status !== 200) expect(result.body).toMatchObject({ code: errorCodes[status] })
   })
 })

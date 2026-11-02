@@ -48,7 +48,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     </UForm>
     <template #footer>
       Chưa có tài khoản?
-      <NuxtLink to="/signup" class="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline-offset-4 hover:underline">
+      <NuxtLink :to="{ path: '/signup', query: typeof route.query.redirect === 'string' ? { redirect: route.query.redirect } : {} }" class="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline-offset-4 hover:underline">
         Đăng ký
       </NuxtLink>
     </template>

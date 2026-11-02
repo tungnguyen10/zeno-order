@@ -1,9 +1,13 @@
 <script setup lang="ts">
-const navItems = [
+const allNavItems: { label: string, to: string, icon: string, ownerOnly?: boolean }[] = [
   { label: 'Đơn hàng', to: '/app/orders', icon: 'i-lucide-receipt' },
   { label: 'Thực đơn', to: '/app/menu', icon: 'i-lucide-utensils-crossed' },
+  { label: 'Báo cáo', to: '/app/reports', icon: 'i-lucide-chart-column' },
+  { label: 'Nhân viên', to: '/app/team', icon: 'i-lucide-users', ownerOnly: true },
   { label: 'Cài đặt', to: '/app/settings', icon: 'i-lucide-settings' },
 ]
+const { activeStore } = useActiveStore()
+const navItems = computed(() => allNavItems.filter(item => !item.ownerOnly || activeStore.value?.role === 'OWNER'))
 </script>
 
 <template>

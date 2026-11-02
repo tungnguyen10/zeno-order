@@ -6,6 +6,7 @@ export interface VerifiedUser {
   userId: string
   email: string | null
   name: string | null
+  emailVerified?: boolean
 }
 
 export type JwtVerifier = (token: string) => Promise<VerifiedUser>
@@ -26,6 +27,7 @@ export function createJwtVerifier(config: { jwks: JWTVerifyGetKey, issuer: strin
         userId: payload.sub,
         email: typeof payload.email === 'string' ? payload.email : null,
         name: typeof payload.name === 'string' ? payload.name : null,
+        ...(payload.emailVerified === true || payload.email_verified === true ? { emailVerified: true } : {}),
       }
     }
     catch (err) {

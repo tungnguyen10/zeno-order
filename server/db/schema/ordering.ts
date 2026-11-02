@@ -46,7 +46,7 @@ export const orders = pgTable('orders', {
   foreignKey({ name: 'orders_table_fk', columns: [t.storeId, t.tableId], foreignColumns: [storeTables.storeId, storeTables.id] }),
   foreignKey({ name: 'orders_zone_fk', columns: [t.storeId, t.deliveryZoneId], foreignColumns: [deliveryZones.storeId, deliveryZones.id] }),
   check('orders_money_check', sql`${t.subtotalVnd} >= 0 and ${t.deliveryFeeVnd} >= 0 and ${t.totalVnd} = ${t.subtotalVnd} + ${t.deliveryFeeVnd}`),
-  // The board index (store, status, created_at) is added by PR4's `owner_ops` migration, which owns the board query.
+  index('orders_board_idx').on(t.storeId, t.status, t.createdAt.desc()),
 ])
 
 export const orderItems = pgTable('order_items', {

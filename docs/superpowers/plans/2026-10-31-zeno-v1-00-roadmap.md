@@ -18,7 +18,7 @@
 | 1 | `feat(core)` | [2026-10-31-zeno-v1-02-core-auth-tenancy.md](./2026-10-31-zeno-v1-02-core-auth-tenancy.md) | **Chi tiết, sẵn sàng thực thi** |
 | 2 | `feat(catalog)` | [2026-10-31-zeno-v1-03-catalog.md](./2026-10-31-zeno-v1-03-catalog.md) | **Chi tiết, sẵn sàng thực thi** |
 | 3 | `feat(order)` | [2026-10-31-zeno-v1-04-ordering.md](./2026-10-31-zeno-v1-04-ordering.md) | **Hoàn tất triển khai PR3**; 60 E2E đạt, xem [kết quả](../specs/2026-11-02-pr3-ordering-implementation.md) |
-| 4 | `feat(owner)` | [2026-10-31-zeno-v1-05-owner-ops.md](./2026-10-31-zeno-v1-05-owner-ops.md) | **Chi tiết (11 task)**, viết trước khi PR3 merge |
+| 4 | `feat(owner)` | [2026-10-31-zeno-v1-05-owner-ops.md](./2026-10-31-zeno-v1-05-owner-ops.md) | **Hoàn tất triển khai PR4**; xem [kết quả](../specs/2026-11-02-pr4-owner-ops-implementation.md) |
 | 5 | `feat(payment-setup)` | [2026-10-31-zeno-v1-06-payment-setup.md](./2026-10-31-zeno-v1-06-payment-setup.md) | **Chi tiết (13 task)**; có mục "Verified external facts" SePay/VietQR, các mục UNVERIFIED có gate |
 | 6 | `feat(payment-webhook)` | [2026-10-31-zeno-v1-07-payment-webhook.md](./2026-10-31-zeno-v1-07-payment-webhook.md) | **Chi tiết (12 task)**; gate UNVERIFIED ở Task 0 |
 | 7 | `test(hardening)` | [2026-10-31-zeno-v1-08-hardening.md](./2026-10-31-zeno-v1-08-hardening.md) | **Chi tiết (16 task)** |
@@ -273,3 +273,9 @@ Mỗi dòng là một input hoặc tình huống người dùng thật sẽ gặ
 | §10 testing, CI | PR0 (hạ tầng), mọi PR (test riêng), PR7 (E2E đầy đủ) |
 | §11 PR roadmap | file này |
 | §13 điểm cần xác minh | PR1 Task 2 Step 6 (`@neon/auth`, claim JWT); PR5–6 (SePay) |
+
+## PR4 handoff cho PR5/PR6 (2026-11-02)
+
+Board, chi tiết, status/cancel/cash APIs, lời mời và báo cáo đã triển khai. Dùng lại `listBoard`, tab `awaiting_payment`, `newOrderIds`, `statusConflict`, `transitionOrder`, `insertOrderEvent`, `recordCashPayment` và các component đơn hàng. Hệ thống PR6 dùng transition repository trong transaction để chuyển `AWAITING_PAYMENT → NEW`; endpoint staff không cho chuyển này. `insertOrderEvent` hiện yêu cầu actor là string: PR6 nới input sang `string | null` cho system event (cột DB đã nullable).
+
+Migration `0003_owner_ops` tạo `order_payments` với unique `order_id` và thêm index board còn thiếu trong PR3 thực tế. PR6 thêm FK và conditional unique cho `bank_transaction_id`, triển khai `BANK_MANUAL`/hoàn tiền owner-only. `/app/team` tách khỏi settings; `/reports` owner-only, `/summary` cho cả staff được cấp store. Lời mời mặc định bắt buộc email đã xác minh; PR7 phải xác minh claim JWT thật trước production. Chi tiết và bằng chứng kiểm tra ở [PR4 implementation](../specs/2026-11-02-pr4-owner-ops-implementation.md).

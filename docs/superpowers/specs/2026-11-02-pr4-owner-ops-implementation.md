@@ -1,0 +1,49 @@
+# PR4 — Owner operations implementation
+
+Implements the existing V1 owner-operations design and PR4 plan on top of PR3 (`cef925d`).
+
+## Delivered behavior
+
+- Mobile order board with status tabs, cursor pagination, order snapshots/contact details and event history. Existing one-tap enabling of order acceptance and opening the customer page are preserved. One-tap fulfillment actions, cash collection, cancellation with a required reason and role-aware refund handling.
+- Atomic status/payment updates and audit events. Expected-state predicates produce `409 STATUS_CONFLICT`; concurrent collections create exactly one payment. Staff cannot cancel a paid order; an owner cancellation moves its payment status to `REFUND_DUE`.
+- Five-second polling while visible, optional sound after interaction, new-order notifications and tab counts. Offline refresh keeps existing cards and warns even on an empty board. Generation guards prevent old store/tab/page responses and completed mutations from overwriting a newer view.
+- Owner team management: create an invitation link once, revoke pending invitations, disable/re-enable staff. Tokens contain 32 random bytes, only SHA-256 hashes are stored, and links expire after seven days and are consumed once.
+- Invitation registration/login returns to the invitation. Acceptance ensures the profile and locks/consumes the invitation in the same transaction, checks normalized email and verification, and preserves existing effective owner privileges.
+- Staff can read their store's daily summary; owners also receive today/7-day/30-day reports and top products. Vietnam date boundaries and actual recorded payment amounts determine reporting; cancelled orders are excluded from revenue.
+
+## Decisions and handoff
+
+`/app/team` is a separate owner route. `GET …/reports` is owner-only; `GET …/summary` allows assigned staff. `PATCH …/status` rejects cancellation, which uses `POST …/cancel`. The board refreshes its current leading page rather than attempting delta polling, so orders that leave a tab disappear correctly.
+
+`INVITE_REQUIRE_VERIFIED_EMAIL` defaults to true; only the literal `false` disables verification. Both camelCase `emailVerified` and snake_case `email_verified` JWT claims require boolean true. Isolated local test environments disable this flag because their Neon Auth setup does not require verification. Before production, enable provider email verification and confirm the actual signed claim, as scheduled in PR7. Invitation tokens are redacted from error paths after the existing public-order path sanitizer.
+
+`drizzle/0003_owner_ops.sql` is the only migration. It creates `order_payments` with tenant/order foreign keys, nonnegative VND amounts and unique `order_id`, and adds the missing `orders_board_idx`. The original PR4 plan assumed PR3 had already created that index; the actual PR3 schema had not. Migration was applied to the verified Neon `test` branch, never production. Reused the existing UUID guard in `server/utils/ids.ts` instead of introducing a duplicate utility.
+
+PR5/PR6 can reuse `listBoard`, the `awaiting_payment` tab, `newOrderIds`, `statusConflict`, order detail/card components and the transaction/repository helpers. `AWAITING_PAYMENT → NEW` is a system transition and must bypass the staff endpoint. PR6 must allow `actorUserId: null` in the repository helper for system events (the DB column is already nullable), add the `bank_transaction_id` FK/conditional unique constraint and implement owner-only `BANK_MANUAL`/refund operations. The unique `order_id` permits one recorded payment per order.
+
+## Verification
+
+- Lint and TypeScript checks: passed; production build and `db:check`: passed.
+- Unit/Nuxt: 1,010 tests across 89 files passed.
+- Full integration: 256 tests across 26 files passed on the verified test branch.
+- API tenant matrix: 246 tests passed, including the new routes' owner/staff/other-store/disabled/anonymous cases. The other 45 API cases passed in the full API run.
+- Browser E2E: 108 distinct scenarios verified on mobile Chrome and Safari against the production build (100 unaffected regressions plus 8 affected scenarios after the quick-action fix). Includes owner/staff operations, menu/catalog journey, checkout/tracking, auth/settings and 360×740 touch-target/overflow checks.
+- Independent code review: no unresolved Critical/Important findings; the reported asynchronous board races have failing-before/passing-after regressions.
+
+The existing quick-action regression caught the initial plan's static settings link replacing the one-tap enable button. The orders page now reuses `AppStoreStatusAlert`; all 8 affected owner/catalog-journey scenarios passed after rebuilding.
+
+The conflict browser test waits for the owner's successful HTTP update before clicking the staff's deliberately stale card. Optimistic card removal alone does not prove the first transaction committed, and Safari correctly exposed that test synchronization error.
+
+Browser verification uses the built server with the ignored test environment:
+
+```sh
+NITRO_PORT=3100 node --env-file=.env.test .output/server/index.mjs
+npx playwright test --grep-invert 'owner and staff serve a COD order end to end|an invitation link used with the wrong account' --workers=2
+npx playwright test tests/e2e/owner-ops.spec.ts tests/e2e/owner-quick-actions.spec.ts tests/e2e/catalog-journey.spec.ts --workers=2
+```
+
+## CI timing reliability
+
+The first complete CI integration run passed 254/256 cases; two pre-existing checkout rate-limit cases exceeded the global 30-second test budget. The full suite took 1,021 seconds on the runner versus about 250 seconds locally. The rate-limit suite now has a targeted 120-second per-test budget for its ten real, serial checkout transactions; other integration tests keep the global 30-second limit. Only `Date` is fixed within that suite so it stays in one ten-minute window; database connections, counters, transactions and networking timers remain real.
+
+All ten checkouts and the 429/replay checks remain. Additional assertions verify that replay does not spend another rate count, rejected carts create no orders, and exhausting one store does not throttle another store. Covering validation passed: 41 checkout/rate-limit tests, followed by 9 clock/rate-limit/replay cases after fixing the clock, plus targeted lint.
