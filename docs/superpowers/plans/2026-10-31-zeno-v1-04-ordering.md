@@ -2,9 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Kết quả triển khai:** Tasks 1–12 đã hoàn tất và kiểm chứng; xem [báo cáo PR3](../specs/2026-11-02-pr3-ordering-implementation.md). Các lệnh commit trong checklist được gộp thành một commit tính năng. Cấu hình khóa Vercel là bước chuẩn bị deployment, chưa thực hiện trong PR này.
+
 **Goal:** Khách đặt đơn trả khi nhận (COD) end-to-end cho cả ba hình thức nhận món (tại bàn, mang đi, giao hàng) trên điện thoại 360px, retry/double tap không bao giờ tạo đơn trùng, và theo dõi đơn ở `/o/:token` mà không cần tài khoản.
 
-**Architecture:** `createOrder` là một service duy nhất chạy trong **một transaction**: khoá advisory theo `(store, idempotencyKey)`, đọc lại món/option theo `store_id`, tính lại tiền bằng `shared/pricing.ts`, so với giá khách đang thấy (`expectedUnitPriceVnd`, `expectedTotalVnd`) rồi mới ghi `orders` + `order_items` (snapshot tên/option/giá) + `order_events`. `guestToken` sinh ngẫu nhiên, DB lưu `sha256` (tra cứu) và bản mã hoá AES-256-GCM (để retry trả lại đúng token cũ). Giỏ hàng sống ở `localStorage` theo từng store; `pendingIdempotencyKey` gắn với "dấu vân tay" của payload nên retry giống hệt thì dùng lại key, sửa giỏ thì sang key mới.
+**Architecture:** `createOrder` là một service duy nhất chạy trong **một transaction**: khoá advisory theo `(store, idempotencyKey)`, kiểm tra replay trước khi tính rate limit trong transaction, đọc lại trạng thái quán với `FOR SHARE`, đọc lại món/option theo `store_id`, tính lại tiền bằng `shared/pricing.ts`, so với giá khách đang thấy (`expectedUnitPriceVnd`, `expectedTotalVnd`) rồi mới ghi `orders` + `order_items` (snapshot tên/option/giá) + `order_events`. `guestToken` sinh ngẫu nhiên, DB lưu `sha256` (tra cứu) và bản mã hoá AES-256-GCM (để retry trả lại đúng token cũ). Giỏ hàng sống ở `localStorage` theo từng store; `pendingIdempotencyKey` gắn với "dấu vân tay" của payload nên retry giống hệt thì dùng lại key, sửa giỏ thì sang key mới.
+
+**Điều chỉnh khi triển khai:** Rate limit nằm trong cùng transaction sau advisory lock và kiểm tra replay, tránh tính hai lần khi retry đồng thời ở ngưỡng giới hạn. Lỗi nghiệp vụ ở preflight được trả về như kết quả để transaction commit bộ đếm rồi mới ném lỗi bên ngoài; chưa ghi dòng đơn nào ở thời điểm đó. Lỗi bất ngờ hoặc lỗi ghi đơn rollback transaction. Cách này chỉ giữ một kết nối nên không gây cạn pool khi nhiều request cùng key chờ lock.
 
 **Tech Stack:** Nuxt 4.5.2, Nuxt UI 4.12.0 (qua `Z*` primitives), drizzle-orm 0.45.4 / drizzle-kit 0.31.11, zod 4.6.5, Node `crypto` (AES-256-GCM), vitest 5 + `@nuxt/test-utils`, Playwright 1.63.
 
@@ -310,7 +314,7 @@ Trong `.github/workflows/ci.yml`, job `integration`, thêm step ngay sau `- run:
           echo "APP_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
 ```
 
-Thêm biến cho Vercel (thủ công, một lần, không nằm trong git):
+**Chưa thực hiện (cấu hình bên ngoài):** thêm `APP_ENCRYPTION_KEY` riêng cho Vercel Preview và Production trước khi deploy (thủ công, một lần, không nằm trong git):
 
 ```bash
 openssl rand -base64 32 | vercel env add APP_ENCRYPTION_KEY production
@@ -813,7 +817,7 @@ Trong `docs/superpowers/plans/2026-10-31-zeno-v1-00-roadmap.md`, ngay dưới da
 - `orders` thêm `table_label`, `delivery_zone_name` (snapshot, nullable); `order_items` dùng `qty` và `options_snapshot_json` đúng PRD §6.
 - Enum dùng chung ở `shared/enums.ts` (không phải `shared/types`).
 - `consumeRateLimit` nhận thêm `now?: Date` (để test cửa sổ mới); `createOrder` nhận tham số thứ ba tuỳ chọn `deps` (seam cho test: `generatePublicCode`, `beforeCommit`).
-- Rate limit được tính **sau** khi kiểm tra idempotency và **trước** transaction (kể cả đơn bị `CART_STALE`/422 vẫn tính, để spam đơn sai không rẻ).
+- Rate limit được tính **trong** transaction, sau advisory lock và kiểm tra replay. Preflight `CART_STALE`/422 trả kết quả lỗi để commit bộ đếm rồi ném bên ngoài; retry cùng key không tính thêm và không cần kết nối pool thứ hai.
 - Polling khi tab hiển thị dùng composable tự viết `useVisiblePolling` thay cho `useDocumentVisibility` của VueUse, để không thêm dependency.
 - Thêm `server/utils/safe-path.ts` để che guest token trong log đường dẫn.
 ```

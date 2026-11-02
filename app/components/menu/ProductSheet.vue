@@ -2,18 +2,21 @@
 import { formatVnd } from '#shared/money'
 import { defaultSelection, MAX_LINE_QUANTITY, priceLine, selectionDeltas, toggleSelection, toOptionRules, validateSelection } from '#shared/pricing'
 import type { PublicOptionGroup, PublicProduct } from '#shared/types/catalog'
+import { CHECKOUT_LIMITS } from '#shared/schemas/checkout'
 
 const open = defineModel<boolean>('open', { default: false })
 const props = defineProps<{ product: PublicProduct | null, canOrder: boolean }>()
-const emit = defineEmits<{ add: [payload: { valueIds: string[], quantity: number }] }>()
+const emit = defineEmits<{ add: [payload: { valueIds: string[], quantity: number, note: string }] }>()
 const rules = computed(() => toOptionRules(props.product?.optionGroups ?? []))
 const selected = ref<string[]>([])
 const quantity = ref(1)
+const note = ref('')
 
 watch([() => open.value, () => props.product?.id], ([isOpen]) => {
   if (!isOpen) return
   selected.value = defaultSelection(rules.value)
   quantity.value = 1
+  note.value = ''
 }, { immediate: true })
 
 const validation = computed(() => validateSelection(rules.value, selected.value))
@@ -44,7 +47,7 @@ function onToggle(group: PublicOptionGroup, valueId: string, event: Event) {
 function confirm() {
   const result = validation.value
   if (!result.ok || !props.canOrder) return
-  emit('add', { valueIds: result.valueIds, quantity: quantity.value })
+  emit('add', { valueIds: result.valueIds, quantity: quantity.value, note: note.value.trim() })
 }
 </script>
 
@@ -61,6 +64,9 @@ function confirm() {
           <span v-if="value.priceDeltaVnd > 0" class="font-mono text-sm text-muted">+{{ formatVnd(value.priceDeltaVnd) }}</span>
         </label>
       </fieldset>
+      <ZFormField label="Ghi chú cho món" hint="Không bắt buộc">
+        <textarea v-model="note" aria-label="Ghi chú cho món" :maxlength="CHECKOUT_LIMITS.maxNote" rows="2" class="min-h-12 w-full rounded-md bg-(--zeno-surface-inset) px-3 py-2 text-base text-default ring-1 ring-default focus-visible:outline-2 focus-visible:outline-primary" />
+      </ZFormField>
       <div class="flex items-center justify-between gap-3">
         <span class="font-semibold text-default">Số lượng</span>
         <div class="flex items-center gap-2">

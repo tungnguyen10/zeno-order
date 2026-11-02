@@ -17,7 +17,7 @@
 | 0 | `chore(foundation)` | [2026-10-31-zeno-v1-01-foundation.md](./2026-10-31-zeno-v1-01-foundation.md) | **Chi tiết, sẵn sàng thực thi** |
 | 1 | `feat(core)` | [2026-10-31-zeno-v1-02-core-auth-tenancy.md](./2026-10-31-zeno-v1-02-core-auth-tenancy.md) | **Chi tiết, sẵn sàng thực thi** |
 | 2 | `feat(catalog)` | [2026-10-31-zeno-v1-03-catalog.md](./2026-10-31-zeno-v1-03-catalog.md) | **Chi tiết, sẵn sàng thực thi** |
-| 3 | `feat(order)` | [2026-10-31-zeno-v1-04-ordering.md](./2026-10-31-zeno-v1-04-ordering.md) | **Chi tiết (12 task)**, viết trước khi PR2 merge |
+| 3 | `feat(order)` | [2026-10-31-zeno-v1-04-ordering.md](./2026-10-31-zeno-v1-04-ordering.md) | **Hoàn tất triển khai PR3**; 60 E2E đạt, xem [kết quả](../specs/2026-11-02-pr3-ordering-implementation.md) |
 | 4 | `feat(owner)` | [2026-10-31-zeno-v1-05-owner-ops.md](./2026-10-31-zeno-v1-05-owner-ops.md) | **Chi tiết (11 task)**, viết trước khi PR3 merge |
 | 5 | `feat(payment-setup)` | [2026-10-31-zeno-v1-06-payment-setup.md](./2026-10-31-zeno-v1-06-payment-setup.md) | **Chi tiết (13 task)**; có mục "Verified external facts" SePay/VietQR, các mục UNVERIFIED có gate |
 | 6 | `feat(payment-webhook)` | [2026-10-31-zeno-v1-07-payment-webhook.md](./2026-10-31-zeno-v1-07-payment-webhook.md) | **Chi tiết (12 task)**; gate UNVERIFIED ở Task 0 |
@@ -139,6 +139,15 @@ Mỗi dòng là một input hoặc tình huống người dùng thật sẽ gặ
 5. **`server/services/ordering/transitions.ts` (thuần).** `nextStatuses(order: { status; fulfillmentType }, actorRole): OrderStatus[]`, `canCancel(order: { status; paymentStatus }, actorRole): boolean`, theo bảng spec §5.3. Unit test kiểu bảng. PR4 dùng.
 6. **Public routes.** `POST /api/public/stores/:slug/orders`, `GET /api/public/orders/:token` (`no-store`, SĐT che còn 3 số cuối, không có địa chỉ, không có `orgId`/`storeId`). Token sai → 404. Test PII.
 7. **Client.** `useCart(slug)` (localStorage `zeno:cart:<slug>`, `pendingIdempotencyKey`, đánh dấu dòng stale), sheet C3 checkout có field theo fulfillment, trang `/o/[token]` (C4, poll 4 s khi tab hiển thị qua `useDocumentVisibility`), lưu danh sách đơn gần đây của khách trong localStorage. E2E: 3 luồng COD; reload giữa chừng giữ giỏ; double tap chỉ ra 1 đơn; mất mạng rồi retry.
+
+**Điểm lệch đã chốt khi viết plan chi tiết ([04-ordering](./2026-10-31-zeno-v1-04-ordering.md)):**
+- Body checkout có thêm `expectedUnitPriceVnd` (mỗi dòng) và `expectedTotalVnd` (cả đơn): server chỉ biết giá đã đổi khi khách gửi giá họ đang thấy; không có hai trường này thì `CART_STALE` vì "giá đổi" không thể phát hiện. Thêm `note` tuỳ chọn cho cả đơn (C3 có "ghi chú cho quán").
+- `orders` thêm `table_label`, `delivery_zone_name` (snapshot, nullable); `order_items` dùng `qty` và `options_snapshot_json` đúng PRD §6.
+- Enum dùng chung ở `shared/enums.ts` (không phải `shared/types`).
+- `consumeRateLimit` nhận thêm `now?: Date` (để test cửa sổ mới); `createOrder` nhận tham số thứ ba tuỳ chọn `deps` (seam cho test: `generatePublicCode`, `beforeCommit`).
+- Rate limit được tính **trong** transaction, sau advisory lock và kiểm tra replay. Preflight `CART_STALE`/422 trả kết quả lỗi để commit bộ đếm rồi ném bên ngoài; retry cùng key không tính thêm và không cần kết nối pool thứ hai.
+- Polling khi tab hiển thị dùng composable tự viết `useVisiblePolling` thay cho `useDocumentVisibility` của VueUse, để không thêm dependency.
+- Thêm `server/utils/safe-path.ts` để che guest token trong log đường dẫn.
 
 ---
 

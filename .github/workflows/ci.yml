@@ -41,6 +41,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Generate APP_ENCRYPTION_KEY
+        run: |
+          key="$(openssl rand -base64 32)"
+          echo "::add-mask::$key"
+          echo "APP_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
       - name: Compute branch expiry
         id: expiry
         # Safety net if the delete step never runs (cancelled/crashed job).

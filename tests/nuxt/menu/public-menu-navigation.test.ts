@@ -54,7 +54,7 @@ describe('public menu fulfillment navigation', () => {
           modes: menu.modes,
           deliveryZones: [],
           table: null,
-          tableError: 'INVALID_TABLE',
+          tableError: query.t === undefined ? null : 'INVALID_TABLE',
         }
       }
       return { data, error: shallowRef(null), refresh, clear }
@@ -69,12 +69,17 @@ describe('public menu fulfillment navigation', () => {
     await nextTick()
     await flushPromises()
     expect(screen.queryByText('Bàn A', { exact: true })).toBeNull()
-    expect(requests).toHaveLength(0)
+    // PR3 also needs fulfillment without a table token to load the store's delivery zones.
+    expect(requests).toEqual([{ url: '/api/public/stores/store-b/fulfillment', token: undefined }])
+    expect(screen.queryByText(/Mã QR không hợp lệ/)).toBeNull()
 
     currentRoute.query.t = 'token-a'
     await nextTick()
     await flushPromises()
-    expect(requests).toEqual([{ url: '/api/public/stores/store-b/fulfillment', token: 'token-a' }])
+    expect(requests).toEqual([
+      { url: '/api/public/stores/store-b/fulfillment', token: undefined },
+      { url: '/api/public/stores/store-b/fulfillment', token: 'token-a' },
+    ])
     expect(screen.getByText(/Mã QR không hợp lệ/)).toBeTruthy()
   })
 })

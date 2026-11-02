@@ -1,13 +1,15 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { fetch, setup } from '@nuxt/test-utils/e2e'
-import { eq } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { closeDb, getDb } from '../../server/db/client'
-import { stores } from '../../server/db/schema'
+import { orders, stores } from '../../server/db/schema'
 import { createTestAuth } from '../support/auth'
 import { resetDb } from '../support/db'
 import { addStaff, createCategory, createOptionGroup, createProduct, createStore, createTable, createTenant, createUser, createZone } from '../support/fixtures'
+
+import { deliveryBody, dineInBody, openStore, pickupBody, seedMenu, teaItem, type SeededMenu } from '../support/checkout-fixtures'
 
 const auth = await createTestAuth()
 process.env.AUTH_TEST_JWKS = auth.jwksJson
@@ -27,6 +29,7 @@ const ids = {} as {
   storeA2: string
   storeB: string
   storeA1Slug: string
+  storeBSlug: string
   categoryA1: string
   categoryA2: string
   categoryB: string
@@ -37,8 +40,11 @@ const ids = {} as {
   zoneA1: string
 }
 
-async function call(method: string, path: string, token?: string | null, body?: unknown) {
-  const headers: Record<string, string> = {}
+let menuA: SeededMenu
+let menuB: SeededMenu
+
+async function call(method: string, path: string, token?: string | null, body?: unknown, extraHeaders: Record<string, string> = {}) {
+  const headers: Record<string, string> = { ...extraHeaders }
   if (token) headers.authorization = `Bearer ${token}`
   let payload: string | undefined
   if (body !== undefined) {
@@ -82,6 +88,7 @@ beforeAll(async () => {
     storeA2: storeA2.id,
     storeB: b.store.id,
     storeA1Slug: a.store.slug,
+    storeBSlug: b.store.slug,
     categoryA1: categoryA1.id,
     categoryA2: categoryA2.id,
     categoryB: categoryB.id,
@@ -550,5 +557,87 @@ describe('tables', () => {
     const first = await call('POST', `/api/stores/${ids.storeA1}/tables`, tokens.ownerA, { code: 'VIP' })
     expect(first.status).toBe(201)
     expect(await call('POST', `/api/stores/${ids.storeA1}/tables`, tokens.ownerA, { code: 'VIP' })).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } })
+  })
+})
+
+describe('public ordering routes: identity is irrelevant, stores never leak', () => {
+  beforeAll(async () => {
+    await openStore(ids.storeA1, { dineInEnabled: true, pickupEnabled: true, deliveryEnabled: true })
+    await openStore(ids.storeB, { dineInEnabled: true, pickupEnabled: true, deliveryEnabled: true })
+    menuA = await seedMenu({ id: ids.storeA1, orgId: ids.orgA })
+    const [storeB] = await getDb().select().from(stores).where(eq(stores.id, ids.storeB))
+    menuB = await seedMenu(storeB!)
+  })
+
+  const callers: (Actor | 'anonymous')[] = ['anonymous', 'ownerA', 'staffA1', 'staffA2', 'disabledA1', 'ownerB']
+  let ipSeq = 0
+  const nextIp = () => ({ 'x-forwarded-for': `203.0.113.${(ipSeq += 1)}` })
+  const placeOrder = (slug: string, body: unknown, token: string | null = null) =>
+    call('POST', `/api/public/stores/${slug}/orders`, token, body, nextIp())
+  const ordersIn = async (storeId: string) =>
+    (await getDb().select({ n: count() }).from(orders).where(eq(orders.storeId, storeId)))[0]!.n
+
+  it.each(callers)('%s places an order in store A1 → 201', async (caller) => {
+    const res = await placeOrder(ids.storeA1Slug, pickupBody(menuA), caller === 'anonymous' ? null : tokens[caller])
+    expect(res.status).toBe(201)
+    expect(res.body).toHaveProperty('guestToken')
+  })
+
+  describe('tracking by token', () => {
+    let tracked: { guestToken: string, publicCode: string }
+
+    it.each(callers)('%s reads the same public view → 200', async (caller) => {
+      tracked ??= (await placeOrder(ids.storeA1Slug, deliveryBody(menuA))).body
+      const res = await call('GET', `/api/public/orders/${tracked.guestToken}`, caller === 'anonymous' ? null : tokens[caller])
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({ publicCode: tracked.publicCode, phoneMasked: '*******678' })
+      expect(JSON.stringify(res.body)).not.toContain(ids.orgA)
+      expect(JSON.stringify(res.body)).not.toContain(ids.storeA1)
+    })
+
+    it.each(callers)('%s with a wrong token → 404, identical to a random token', async (caller) => {
+      tracked ??= (await placeOrder(ids.storeA1Slug, deliveryBody(menuA))).body
+      const token = caller === 'anonymous' ? null : tokens[caller]
+      const wrong = await call('GET', `/api/public/orders/${tracked.guestToken.toUpperCase()}`, token)
+      const random = await call('GET', `/api/public/orders/${randomBytes(32).toString('base64url')}`, token)
+      expect(wrong).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+      expect(wrong).toEqual(random)
+    })
+  })
+
+  describe('store A resources are useless in store B', () => {
+    it('a table QR token of store A → 422 INVALID_TABLE, nothing stored in B', async () => {
+      const before = await ordersIn(ids.storeB)
+      const res = await placeOrder(ids.storeBSlug, dineInBody(menuB, { tableToken: menuA.table.token }))
+      expect(res).toMatchObject({ status: 422, body: { code: 'INVALID_TABLE' } })
+      expect(await ordersIn(ids.storeB)).toBe(before)
+    })
+
+    it('a delivery zone of store A → 422 INVALID_ZONE', async () => {
+      const before = await ordersIn(ids.storeB)
+      const res = await placeOrder(ids.storeBSlug, deliveryBody(menuB, { deliveryZoneId: menuA.zone.id }))
+      expect(res).toMatchObject({ status: 422, body: { code: 'INVALID_ZONE' } })
+      expect(await ordersIn(ids.storeB)).toBe(before)
+    })
+
+    it('a product of store A → 409 CART_STALE as if it did not exist', async () => {
+      const before = await ordersIn(ids.storeB)
+      const res = await placeOrder(ids.storeBSlug, pickupBody(menuB, { items: [teaItem(menuA)] }))
+      expect(res).toMatchObject({ status: 409, body: { code: 'CART_STALE', details: { lines: [{ index: 0, reason: 'PRODUCT_UNAVAILABLE', name: null }] } } })
+      expect(await ordersIn(ids.storeB)).toBe(before)
+    })
+
+    it('option values of store A on a product of store B → 409 OPTION_INVALID', async () => {
+      const res = await placeOrder(ids.storeBSlug, pickupBody(menuB, { items: [teaItem(menuB, { optionValueIds: [menuA.tea.size.m.id] })] }))
+      expect(res).toMatchObject({ status: 409, body: { code: 'CART_STALE', details: { lines: [{ index: 0, reason: 'OPTION_INVALID' }] } } })
+    })
+
+    it('the same idempotency key in two stores yields two independent orders', async () => {
+      const key = randomUUID()
+      const a = await placeOrder(ids.storeA1Slug, pickupBody(menuA, { idempotencyKey: key }))
+      const b = await placeOrder(ids.storeBSlug, pickupBody(menuB, { idempotencyKey: key }))
+      expect([a.status, b.status]).toEqual([201, 201])
+      expect(a.body.guestToken).not.toBe(b.body.guestToken)
+    })
   })
 })
