@@ -24,7 +24,7 @@ Repo được làm mới hoàn toàn; không tái sử dụng code trong git his
 | Tenant membership | Bảng của app (`organization_members`, `store_members`), **không** dùng plugin Organization của Neon Auth (Beta, không có role theo store). |
 | DB | Neon Postgres + Drizzle ORM. Runtime: `Pool` của `@neondatabase/serverless` (WebSocket) + `drizzle-orm/neon-serverless` để có interactive transaction. App dùng `DATABASE_URL` (pooled); migration dùng `DATABASE_URL_UNPOOLED` qua `drizzle-kit`. |
 | UI | Nuxt UI v4 trên Tailwind v4 có sẵn. State bằng composables; Pinia chỉ dùng nếu thực sự cần (đã cài). |
-| Ảnh | Neon Object Storage, bucket mới `product-images` (`access: "public_read"`), upload bằng presigned PUT. Bucket `assets` (private) giữ cho file nội bộ. |
+| Ảnh | Neon Object Storage, bucket mới `product-images` (`access: "public_read"`), upload qua server (multipart ≤ 2 MB, kiểm tra magic bytes JPG/PNG/WebP; key `stores/<storeId>/products/<productId>/<token>.<ext>`, xoá ảnh cũ sau khi ghi DB) vì CORS của Neon Storage cho browser PUT chưa được xác minh. Bucket `assets` (private) giữ cho file nội bộ. |
 | Cron | Vercel Cron → `/api/internal/*`, bảo vệ bằng `CRON_SECRET`. |
 | RLS | Không dùng ở V1 (follow-up). Authorization tại service/API + composite FK. |
 | Test | Vitest (unit + integration trên Neon branch `test`), Playwright (E2E mobile viewport), GitHub Actions CI. |

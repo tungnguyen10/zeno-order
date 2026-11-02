@@ -7,7 +7,7 @@ import { closeDb, getDb } from '../../server/db/client'
 import { stores } from '../../server/db/schema'
 import { createTestAuth } from '../support/auth'
 import { resetDb } from '../support/db'
-import { addStaff, createCategory, createProduct, createStore, createTable, createTenant, createUser, createZone } from '../support/fixtures'
+import { addStaff, createCategory, createOptionGroup, createProduct, createStore, createTable, createTenant, createUser, createZone } from '../support/fixtures'
 
 const auth = await createTestAuth()
 process.env.AUTH_TEST_JWKS = auth.jwksJson
@@ -70,6 +70,7 @@ beforeAll(async () => {
   const categoryA2 = await createCategory(storeA2, 'Trà A2')
   const categoryB = await createCategory(b.store, 'Trà B')
   const productA1 = await createProduct(a.store, { name: 'Món A1', categoryId: categoryA1.id })
+  await createOptionGroup(a.store, productA1, { name: 'Size', required: true, values: [{ name: 'M' }, { name: 'L', priceDeltaVnd: 5000 }] })
   const productA2 = await createProduct(storeA2, { name: 'Món A2' })
   const productB = await createProduct(b.store, { name: 'Món B' })
   const tableA1 = await createTable(a.store, '01')
@@ -437,6 +438,15 @@ describe('PUT /products/:id/options', () => {
 })
 
 describe('fulfillment settings', () => {
+  it('requires authentication for fulfillment and delivery-zone endpoints', async () => {
+    expect(await call('PATCH', `/api/stores/${ids.storeA1}/fulfillment`, null, { pickupEnabled: true }))
+      .toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+    expect(await call('GET', `/api/stores/${ids.storeA1}/delivery-zones`))
+      .toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+    expect(await call('POST', `/api/stores/${ids.storeA1}/delivery-zones`, null, { name: 'Quận 1', feeVnd: 10000 }))
+      .toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+  })
+
   it.each<[Actor, number]>([['staffA1', 403], ['staffA2', 404], ['disabledA1', 404], ['ownerB', 404], ['ownerA', 200]])('PATCH /fulfillment %s → %i', async (actor, status) => {
     const res = await call('PATCH', `/api/stores/${ids.storeA1}/fulfillment`, tokens[actor], { pickupEnabled: true })
     expect(res.status).toBe(status)

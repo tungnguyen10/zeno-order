@@ -23,6 +23,7 @@ await setup({
 
 const seed = {} as {
   slug: string
+  otherSlug: string
   storeId: string
   orgId: string
   ownerToken: string
@@ -40,9 +41,12 @@ beforeAll(async () => {
   const category = await createCategory(a.store, 'Trà sữa')
   const product = await createProduct(a.store, { name: 'Trà sữa trân châu', basePriceVnd: 35000, categoryId: category.id })
   await createOptionGroup(a.store, product, { name: 'Size', required: true })
+  const otherProduct = await createProduct(b.store, { name: 'Món riêng cửa hàng B' })
+  await createOptionGroup(b.store, otherProduct, { name: 'Option riêng cửa hàng B', values: [{ name: 'Giá trị bí mật' }] })
   const sign = (user: { userId: string, email: string }) => auth.sign({ sub: user.userId, email: user.email })
   Object.assign(seed, {
     slug: a.store.slug,
+    otherSlug: b.store.slug,
     storeId: a.store.id,
     orgId: a.org.id,
     ownerToken: await sign(a.owner),
@@ -75,6 +79,16 @@ describe('GET /api/public/stores/:slug/menu', () => {
     const json = JSON.stringify(res.body)
     expect(json).not.toContain(seed.orgId)
     expect(json).not.toContain(seed.storeId)
+  })
+
+  it('keeps another store’s product and option values out of this store’s menu', async () => {
+    const res = await call('GET', `/api/public/stores/${seed.slug}/menu`)
+    expect(res.status).toBe(200)
+    expect(res.body.products.map((product: { name: string }) => product.name)).toEqual(['Trà sữa trân châu'])
+
+    const other = await call('GET', `/api/public/stores/${seed.otherSlug}/menu`)
+    expect(other.body.products[0]).toMatchObject({ name: 'Món riêng cửa hàng B' })
+    expect(other.body.products[0].optionGroups[0].values[0].name).toBe('Giá trị bí mật')
   })
 
   it('resolves an upper-case slug', async () => {
@@ -153,7 +167,18 @@ describe('GET /api/public/stores/:slug/fulfillment', () => {
   })
 
   it.each([['unknown', 'khong-ton-tai'], ['500 characters', 'a'.repeat(500)]])('returns 404 for a %s slug', async (_label, slug) => {
-    expect(await call('GET', `/api/public/stores/${slug}/fulfillment`)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    const res = await call('GET', `/api/public/stores/${slug}/fulfillment`)
+    expect(res).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    expect(res.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('returns an uncached 404 for a suspended store', async () => {
+    await getDb().update(stores).set({ status: 'SUSPENDED' }).where(eq(stores.id, seed.storeId))
+    const suspended = await call('GET', url())
+    await getDb().update(stores).set({ status: 'ACTIVE' }).where(eq(stores.id, seed.storeId))
+    const missing = await call('GET', '/api/public/stores/khong-ton-tai/fulfillment')
+    expect(suspended).toMatchObject({ status: 404, body: missing.body })
+    expect(suspended.headers.get('cache-control')).toBe('no-store')
   })
 })
 

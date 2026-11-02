@@ -16,7 +16,7 @@
 |---|---|---|---|
 | 0 | `chore(foundation)` | [2026-10-31-zeno-v1-01-foundation.md](./2026-10-31-zeno-v1-01-foundation.md) | **Chi tiết, sẵn sàng thực thi** |
 | 1 | `feat(core)` | [2026-10-31-zeno-v1-02-core-auth-tenancy.md](./2026-10-31-zeno-v1-02-core-auth-tenancy.md) | **Chi tiết, sẵn sàng thực thi** |
-| 2 | `feat(catalog)` | [2026-10-31-zeno-v1-03-catalog.md](./2026-10-31-zeno-v1-03-catalog.md) | **Chi tiết (19 task)**, viết trước khi PR1 merge |
+| 2 | `feat(catalog)` | [2026-10-31-zeno-v1-03-catalog.md](./2026-10-31-zeno-v1-03-catalog.md) | **Chi tiết, sẵn sàng thực thi** |
 | 3 | `feat(order)` | [2026-10-31-zeno-v1-04-ordering.md](./2026-10-31-zeno-v1-04-ordering.md) | **Chi tiết (12 task)**, viết trước khi PR2 merge |
 | 4 | `feat(owner)` | [2026-10-31-zeno-v1-05-owner-ops.md](./2026-10-31-zeno-v1-05-owner-ops.md) | **Chi tiết (11 task)**, viết trước khi PR3 merge |
 | 5 | `feat(payment-setup)` | [2026-10-31-zeno-v1-06-payment-setup.md](./2026-10-31-zeno-v1-06-payment-setup.md) | **Chi tiết (13 task)**; có mục "Verified external facts" SePay/VietQR, các mục UNVERIFIED có gate |
