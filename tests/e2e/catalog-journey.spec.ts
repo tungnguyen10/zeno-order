@@ -11,6 +11,8 @@ async function waitForHydration(page: import('@playwright/test').Page) {
 }
 
 test('owner sets up a store in a few taps and a customer opens the menu from the table QR', async ({ page, browser }, testInfo) => {
+  // The first browser test also starts Nuxt's on-demand modules and a second customer context.
+  test.setTimeout(120_000)
   const { slug } = await signUpAndOnboard(page, testInfo, 'Quán Hành Trình')
 
   // One tap to accept orders, no navigation.
