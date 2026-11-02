@@ -18,6 +18,7 @@
     "test:integration": "(test ! -f drizzle/meta/_journal.json || ENV_FILE=.env.test drizzle-kit migrate) && vitest run --project integration",
     "test:api": "(test ! -f drizzle/meta/_journal.json || ENV_FILE=.env.test drizzle-kit migrate) && vitest run --project api",
     "test:e2e": "playwright test",
+    "db:seed": "tsx --tsconfig .nuxt/tsconfig.server.json scripts/seed-catalog.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check"
@@ -56,6 +57,7 @@
     "h3-next": "npm:h3@2.0.1-rc.31",
     "happy-dom": "20.14.5",
     "typescript": "6.0.3",
+    "tsx": "4.23.15",
     "vitest": "5.0.0",
     "vue-tsc": "3.3.11"
   }
