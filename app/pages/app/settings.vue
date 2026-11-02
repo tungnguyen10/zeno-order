@@ -26,12 +26,41 @@ function resetDraft() {
 watch(store, resetDraft, { immediate: true })
 
 const isOwner = computed(() => store.value?.role === 'OWNER')
+const route = useRoute()
+const router = useRouter()
+const tabItems = [
+  { label: 'Cửa hàng', value: 'store' },
+  { label: 'Nhận món & khu vực giao', value: 'fulfillment' },
+  { label: 'Bàn & QR', value: 'tables' },
+]
+const tab = computed({
+  get: () => {
+    const requested = typeof route.query.tab === 'string' ? route.query.tab : 'store'
+    return isOwner.value && tabItems.some(item => item.value === requested) ? requested : 'store'
+  },
+  set: (value: string) => {
+    if (value !== tab.value) void router.push({ query: { ...route.query, tab: value === 'store' ? undefined : value } })
+  },
+})
 const isDirty = computed(() => !!store.value && isOwner.value
   && (draft.name !== store.value.name || draft.isAcceptingOrders !== store.value.isAcceptingOrders))
 const saving = ref(false)
 const publicUrl = computed(() => (store.value ? `${config.public.appBaseUrl}/s/${store.value.slug}` : ''))
 
 useUnsavedChangesGuard(isDirty)
+
+onBeforeRouteUpdate((to) => {
+  const requested = typeof to.query.tab === 'string' ? to.query.tab : 'store'
+  const nextTab = isOwner.value && tabItems.some(item => item.value === requested) ? requested : 'store'
+  if (nextTab !== tab.value && isDirty.value) {
+    if (!window.confirm('Bạn có thay đổi chưa lưu. Rời trang?')) return false
+    resetDraft()
+  }
+})
+
+async function onFulfillmentChanged() {
+  await Promise.all([refresh(), load(true)])
+}
 
 async function save() {
   if (!store.value || !isDirty.value) return
@@ -53,6 +82,7 @@ async function save() {
 <template>
   <div class="flex flex-col gap-6" :class="{ 'pb-20 md:pb-0': isDirty }">
     <AppPageHeader title="Cài đặt cửa hàng" description="Thông tin hiển thị cho khách và trạng thái nhận đơn." />
+    <ZTabs v-if="isOwner" v-model="tab" :items="tabItems" />
 
     <div v-if="status === 'pending' && !store" class="flex flex-col gap-4" aria-busy="true" aria-label="Đang tải cài đặt">
       <USkeleton v-for="i in 3" :key="i" class="h-32 w-full rounded-md" />
@@ -69,7 +99,7 @@ async function save() {
     <template v-else-if="store">
       <ZAlert v-if="!isOwner" color="info" title="Chỉ chủ cửa hàng mới thay đổi được cài đặt." />
 
-      <form id="store-settings" class="flex flex-col gap-6" @submit.prevent="save">
+      <form v-if="tab === 'store'" id="store-settings" class="flex flex-col gap-6" @submit.prevent="save">
         <ZCard title="Thông tin cửa hàng" padding="lg">
           <ZFormField label="Tên cửa hàng" name="name">
             <ZInput v-model="draft.name" :disabled="!isOwner" size="lg" autocomplete="organization" />
@@ -104,8 +134,10 @@ async function save() {
         </div>
       </form>
 
+      <SettingsFulfillmentTab v-if="tab === 'fulfillment'" :key="store.id" :store="store" @changed="onFulfillmentChanged" />
+
       <div
-        v-if="isOwner"
+        v-if="isOwner && tab === 'store'"
         v-show="isDirty"
         class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-default bg-default/95 px-4 py-3 backdrop-blur md:hidden"
       >

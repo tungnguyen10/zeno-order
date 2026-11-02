@@ -23,8 +23,8 @@ export function nextTableCode(existing: string[]): string {
     if (!/^\d+$/.test(code)) return maximum
     const value = BigInt(code)
     return value > maximum ? value : maximum
-  }, 0n)
-  const next = String(largest + 1n)
+  }, BigInt(0))
+  const next = String(largest + BigInt(1))
   if (next.length > 20) throw new AppError('VALIDATION_FAILED', 'Không thể tạo thêm mã bàn tự động')
   return next.padStart(2, '0')
 }
