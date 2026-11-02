@@ -56,5 +56,13 @@ export default defineNuxtConfig({
     '/signup': { ssr: false },
     '/onboarding': { ssr: false },
     '/invite/**': { ssr: false },
+    '/o/**': {
+      ssr: false,
+      headers: {
+        'Referrer-Policy': 'no-referrer',
+        'X-Robots-Tag': 'noindex, nofollow',
+        'Cache-Control': 'no-store',
+      },
+    },
   },
 })

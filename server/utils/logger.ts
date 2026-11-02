@@ -9,7 +9,11 @@ function redactString(value: string): string {
 export function redact(value: unknown, depth = 0): unknown {
   if (depth > MAX_DEPTH) return '[Truncated]'
   if (typeof value === 'string') return redactString(value)
-  if (value instanceof Error) return { name: value.name, message: redactString(value.message) }
+  if (value instanceof Error) {
+    // Drizzle query messages include bound parameters; Postgres messages/details may contain row values.
+    const databaseError = value.name === 'DrizzleQueryError' || 'query' in value || 'code' in value || /^Failed query:/i.test(value.message)
+    return { name: value.name, message: databaseError ? '[REDACTED database error]' : redactString(value.message) }
+  }
   if (Array.isArray(value)) return value.map(item => redact(item, depth + 1))
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {}

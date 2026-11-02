@@ -1,6 +1,8 @@
 export const FORBIDDEN_PUBLIC_KEYS = [
   'orgId', 'storeId', 'org_id', 'store_id', 'active', 'imageKey', 'image_key',
   'tokenHash', 'token_hash', 'customerPhone', 'address', 'secret', 'hmacSecret', 'apiToken',
+  'guestTokenHash', 'guest_token_hash', 'guestTokenEncrypted', 'guest_token_encrypted',
+  'idempotencyKey', 'idempotency_key', 'addressSnapshot', 'address_snapshot', 'customer_phone',
 ] as const
 
 function collectKeys(value: unknown, into: Set<string>): Set<string> {

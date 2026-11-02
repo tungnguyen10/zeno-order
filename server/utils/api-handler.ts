@@ -1,6 +1,7 @@
 import { defineEventHandler, setResponseStatus, type H3Event } from 'h3'
 import { toApiError } from './errors'
 import { logger } from './logger'
+import { safePath } from './safe-path'
 
 export function defineApiHandler<T>(handler: (event: H3Event) => T | Promise<T>) {
   return defineEventHandler(async (event) => {
@@ -13,7 +14,7 @@ export function defineApiHandler<T>(handler: (event: H3Event) => T | Promise<T>)
         const cause = err instanceof Error ? err.cause : undefined
         logger.error('api.unhandled', {
           requestId: event.context.requestId,
-          path: event.path.split('?')[0],
+          path: safePath(event.path),
           err,
           ...(cause === undefined ? {} : { cause }),
         })

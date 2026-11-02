@@ -36,6 +36,14 @@ describe('redact', () => {
     expect(redact(new Error('boom postgres://a:b@c/d'))).toEqual({ name: 'Error', message: 'boom postgres://[REDACTED]' })
   })
 
+  it('does not log database query parameters or PostgreSQL error details', () => {
+    const query = new Error('Failed query: insert into orders values ($1)\nparams: 0912345678,12 Lê Lợi,v1.ciphertext')
+    query.name = 'DrizzleQueryError'
+    expect(redact(query)).toEqual({ name: 'DrizzleQueryError', message: '[REDACTED database error]' })
+    const cause = Object.assign(new Error('duplicate key'), { code: '23505', detail: 'Key (phone)=(0912345678) already exists' })
+    expect(redact(cause)).toEqual({ name: 'Error', message: '[REDACTED database error]' })
+  })
+
   it('truncates very deep structures', () => {
     const deep = { a: { b: { c: { d: { e: { f: { g: 1 } } } } } } }
     expect(JSON.stringify(redact(deep))).toContain('[Truncated]')
