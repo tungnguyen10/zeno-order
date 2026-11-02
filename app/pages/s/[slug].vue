@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { groupByCategory } from '#shared/menu-groups'
 import { filterProducts, shouldShowSearch } from '#shared/menu-search'
+import { tableTokenFromQuery } from '#shared/fulfillment-query'
 import type { PublicFulfillment, PublicMenu, PublicProduct } from '#shared/types/catalog'
 
 const route = useRoute()
@@ -12,12 +13,21 @@ const { data: menu, error, refresh } = await useFetch<PublicMenu>(
 )
 if (error.value?.statusCode === 404) throw createError({ statusCode: 404, statusMessage: 'Not Found', fatal: true })
 
-const rawTable = route.query.t
-const tableToken = typeof rawTable === 'string' ? rawTable : rawTable === undefined ? undefined : ''
-const { data: fulfillment } = await useFetch<PublicFulfillment>(
+const tableToken = computed(() => tableTokenFromQuery(route.query.t))
+const { data: fulfillment, refresh: refreshFulfillment, clear: clearFulfillment } = await useFetch<PublicFulfillment | null>(
   () => `/api/public/stores/${encodeURIComponent(slug.value)}/fulfillment`,
-  { query: { t: tableToken }, immediate: tableToken !== undefined, watch: false },
+  {
+    query: computed(() => tableToken.value === undefined ? {} : { t: tableToken.value }),
+    immediate: tableToken.value !== undefined,
+    default: () => null,
+    watch: false,
+  },
 )
+
+watch([slug, tableToken], async ([, nextToken]) => {
+  clearFulfillment()
+  if (nextToken !== undefined) await refreshFulfillment()
+})
 
 useSeoMeta({
   title: () => menu.value?.store.name ?? 'Thực đơn',

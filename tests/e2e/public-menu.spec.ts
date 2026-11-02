@@ -65,6 +65,13 @@ async function waitForPublicMenuHydration(page: import('@playwright/test').Page)
   await page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as (HTMLElement & { __vue_app__?: unknown }) | null)?.__vue_app__))
 }
 
+async function navigateWithinApp(page: import('@playwright/test').Page, path: string) {
+  await page.evaluate((url) => {
+    window.history.pushState({}, '', url)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, path)
+}
+
 test('customer picks options with defaults, sees live prices and fills the draft cart', async ({ page }) => {
   const t = await openStore()
   const tea = await createProduct(t.store, { name: 'Trà sữa', basePriceVnd: 30000, position: 1 })
@@ -175,4 +182,44 @@ test('a table QR binds its table and broken QR tokens never do', async ({ page }
   await page.goto(`/s/${t.store.slug}`)
   await expect(page.getByText(/Mã QR không hợp lệ/)).toBeHidden()
   await expect(page.getByText('Bàn 05', { exact: true })).toBeHidden()
+})
+
+test('SPA store navigation refreshes fulfillment and keeps each draft cart scoped', async ({ page }) => {
+  const storeA = await openStore()
+  await createProduct(storeA.store, { name: 'Món A', basePriceVnd: 10000 })
+  const tableA = await createTable(storeA.store, '11', { displayName: 'Bàn 11' })
+
+  const storeB = await openStore()
+  await createProduct(storeB.store, { name: 'Món B', basePriceVnd: 25000 })
+  const tableB = await createTable(storeB.store, '22', { displayName: 'Bàn 22' })
+
+  await page.goto(`/s/${storeA.store.slug}?t=${tableA.token}`)
+  await waitForPublicMenuHydration(page)
+  await expect(page.getByText('Bàn 11', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Thêm Món A' }).click()
+  await expect(page.getByText('Giỏ • 1 món')).toBeVisible()
+  await expect(page.getByText('10.000đ', { exact: true }).last()).toBeVisible()
+
+  await navigateWithinApp(page, `/s/${storeB.store.slug}`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(storeB.store.name)
+  await expect(page.getByText('Bàn 11', { exact: true })).toBeHidden()
+  await expect(page.getByText(/Mã QR không hợp lệ/)).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Thêm Món B' })).toBeVisible()
+  await expect(page.getByText('Giỏ • 1 món')).toBeHidden()
+  await page.getByRole('button', { name: 'Thêm Món B' }).click()
+  await expect(page.getByText('Giỏ • 1 món')).toBeVisible()
+  await expect(page.getByText('25.000đ', { exact: true }).last()).toBeVisible()
+
+  await navigateWithinApp(page, `/s/${storeB.store.slug}?t=${tableA.token}`)
+  await expect(page.getByText(/Mã QR không hợp lệ/)).toBeVisible()
+  await expect(page.getByText('Bàn 11', { exact: true })).toBeHidden()
+  await navigateWithinApp(page, `/s/${storeB.store.slug}?t=${tableB.token}`)
+  await expect(page.getByText('Bàn 22', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Mã QR không hợp lệ/)).toBeHidden()
+
+  await navigateWithinApp(page, `/s/${storeA.store.slug}`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(storeA.store.name)
+  await expect(page.getByText('Giỏ • 1 món')).toBeVisible()
+  await expect(page.getByText('10.000đ', { exact: true }).last()).toBeVisible()
+  await expect(page.getByText('25.000đ', { exact: true })).toBeHidden()
 })
