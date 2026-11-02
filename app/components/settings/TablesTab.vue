@@ -12,6 +12,7 @@ const status = shallowRef<'pending' | 'success' | 'error'>('pending')
 const adding = shallowRef(false)
 const busyId = shallowRef<string | null>(null)
 const qr = reactive({ open: false, title: '', url: '' })
+let listRequestGeneration = 0
 
 const baseUrl = computed(() => `/api/stores/${props.store.id}/tables`)
 
@@ -33,23 +34,33 @@ watch(() => qr.open, (isOpen) => {
 })
 
 async function load() {
+  const requestGeneration = ++listRequestGeneration
   status.value = 'pending'
   try {
-    tables.value = (await api<{ tables: TableDTO[] }>(baseUrl.value)).tables
+    const result = await api<{ tables: TableDTO[] }>(baseUrl.value)
+    if (requestGeneration !== listRequestGeneration) return
+    tables.value = result.tables
     status.value = 'success'
   }
   catch {
-    status.value = 'error'
+    if (requestGeneration === listRequestGeneration) status.value = 'error'
   }
 }
 
 void load()
+
+function recordTableMutation() {
+  // Prevent an earlier list snapshot from replacing the state updated by this mutation.
+  listRequestGeneration++
+  status.value = 'success'
+}
 
 async function addTable() {
   if (adding.value) return
   adding.value = true
   try {
     const created = await api<TableWithQr>(baseUrl.value, { method: 'POST', body: {} })
+    recordTableMutation()
     tables.value = [...tables.value, toDto(created)]
     showQr(created)
   }
@@ -66,6 +77,7 @@ async function regenerate(table: TableDTO) {
   busyId.value = table.id
   try {
     const renewed = await api<TableWithQr>(`${baseUrl.value}/${table.id}/regenerate`, { method: 'POST' })
+    recordTableMutation()
     tables.value = tables.value.map(item => (item.id === table.id ? toDto(renewed) : item))
     showQr(renewed)
   }
@@ -81,6 +93,7 @@ async function setActive(table: TableDTO, active: boolean) {
   busyId.value = table.id
   try {
     const updated = await api<TableDTO>(`${baseUrl.value}/${table.id}`, { method: 'PATCH', body: { active } })
+    recordTableMutation()
     tables.value = tables.value.map(item => (item.id === table.id ? updated : item))
   }
   catch (err) {
