@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { count, eq } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -407,11 +407,40 @@ describe('createOrder — transaction admission races', () => {
   })
 
   it('replays simultaneous same-key requests at the rate boundary without charging twice', async () => {
-    for (let i = 0; i < 9; i++) await place(pickupBody(menu))
-    const body = pickupBody(menu)
-    const results = await Promise.all([place(body), place(body)])
-    expect(results[0]!.response).toEqual(results[1]!.response)
-    expect(results.filter(result => result.replayed)).toHaveLength(1)
-    expect((await getDb().select().from(rateLimits))[0]!.count).toBe(10)
+    // Arrange the counter directly: nine unrelated checkouts add remote DB latency,
+    // but do not contribute to the concurrency behaviour being tested here.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-31T10:03:20Z') })
+    const db = getDb()
+    const transaction = db.transaction.bind(db)
+    const bothEntered = Promise.withResolvers<boolean>()
+    let entered = 0
+    const gate = vi.spyOn(db, 'transaction').mockImplementation(async (callback, config) => {
+      return transaction(async (tx) => {
+        // Both preflight lookups must miss before either transaction can create
+        // the order, so an outside-transaction replay cannot make this test pass.
+        if (++entered === 2) bothEntered.resolve(true)
+        await bothEntered.promise
+        return callback(tx)
+      }, config)
+    })
+    try {
+      const ipHash = createHash('sha256').update('203.0.113.7').digest('hex').slice(0, 16)
+      const key = `checkout:${tenant.store.id}:${ipHash}`
+      await db.insert(rateLimits).values({ key, windowStart: new Date('2026-10-31T10:00:00Z'), count: 9 })
+
+      const body = pickupBody(menu)
+      const results = await Promise.all([place(body), place(body)])
+      expect(entered).toBe(2)
+      expect(results[0]!.response).toEqual(results[1]!.response)
+      expect(results.filter(result => result.replayed)).toHaveLength(1)
+      expect(await countOf(orders)).toBe(1)
+      const rows = await db.select().from(rateLimits)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ key, count: 10, windowStart: new Date('2026-10-31T10:00:00Z') })
+    }
+    finally {
+      gate.mockRestore()
+      vi.useRealTimers()
+    }
   })
 })

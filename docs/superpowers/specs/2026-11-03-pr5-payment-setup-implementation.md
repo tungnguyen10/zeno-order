@@ -58,3 +58,13 @@ Người dùng đã chọn giữ checklist chờ kiểm thử thật. Không có
 | M6 | Chờ kiểm tra | Đơn thử, quét và chuyển tiền thật vào tài khoản; PR6 xác nhận tự động |
 
 Webhook nhận tiền, xác minh HMAC, cron và đối soát thuộc PR6. PR5 chỉ chuẩn bị `last_valid_webhook_at`; E2E mô phỏng việc PR6 ghi cột này, không thêm đường tắt kích hoạt cho production.
+
+## Sửa test timeout trên CI sau khi mở PR
+
+CI run 41573741714 có 339/340 integration test đạt; ca `replays simultaneous same-key requests at the rate boundary` timeout 30 giây. Log CI cho thấy hai ca tạo mười đơn tuần tự mất khoảng 42 giây mỗi ca, trong khi lượt local nhanh hơn nhiều. Bản sửa trước chỉ áp dụng Date cố định/timeout 120 giây cho nhóm `createOrder — rate limit`; ca race nằm ngoài nhóm đó, vẫn chạy 9 checkout chuẩn bị và dùng đồng hồ thật trong timeout 30 giây.
+
+Sửa fixture của ca race: ghi trực tiếp counter 9/10 trong cửa sổ cố định, chỉ chạy hai request cùng key cần kiểm tra. Một barrier trước callback transaction buộc cả hai request vượt preflight khi đơn chưa tồn tại, vì vậy test thực sự kiểm tra serialization/replay trong transaction. Giữ timeout 30 giây, giữ socket/timer thật và giữ ba test chạy mười checkout end-to-end hiện có. Assert bổ sung: hai transaction đã vào, đúng một đơn được tạo, đúng một replay, chỉ một counter với count 10. Không đổi logic sản phẩm.
+
+Đối chiếu local riêng ca lỗi: bản cũ 10,02 giây; bản sửa 2,97 giây (cùng database test). Kết quả CI mới được theo dõi tại PR; kết quả local không được coi là bằng chứng CI đã đạt.
+
+Hồi quy sau sửa: toàn bộ `create-order.test.ts` và `rate-limit.test.ts` đạt 41/41 test (68,75 giây); ESLint của file sửa và `npm run typecheck` đạt. Giữ nguyên timeout toàn cục và logic checkout.
