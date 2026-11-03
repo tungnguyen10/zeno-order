@@ -126,6 +126,7 @@ async function refreshAll() {
         v-model:open="checkoutOpen"
         :slug="slug"
         :store-name="menu.store.name"
+        :bank-qr-enabled="menu.bankQrEnabled ?? false"
         :accepting-orders="canOrder"
         :dine-in-enabled="fulfillment?.modes.dineIn ?? menu.modes.dineIn"
         :pickup-enabled="fulfillment?.modes.pickup ?? menu.modes.pickup"

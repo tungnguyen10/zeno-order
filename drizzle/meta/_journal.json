@@ -29,6 +29,13 @@
       "when": 1793610868621,
       "tag": "0003_owner_ops",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793663121675,
+      "tag": "0004_payment_setup",
+      "breakpoints": true
     }
   ]
 }

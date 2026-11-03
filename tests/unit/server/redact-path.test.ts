@@ -4,6 +4,8 @@ import { safePath } from '../../../server/utils/safe-path'
 
 describe('redactPath (invitation tokens)', () => {
   it.each([
+    ['/api/webhooks/sepay/key-123?x=1', '/api/webhooks/sepay/[REDACTED]?x=1'],
+    ['/api/public/orders/token-123/payment-attempts', '/api/public/orders/[REDACTED]/payment-attempts'],
     ['/api/invitations/abc123_-XYZ', '/api/invitations/[REDACTED]'],
     ['/api/invitations/abc123_-XYZ/accept', '/api/invitations/[REDACTED]/accept'],
     ['/invite/abc123', '/invite/[REDACTED]'],

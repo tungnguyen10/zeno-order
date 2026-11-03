@@ -1,12 +1,13 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { closeDb, getDb } from '../../server/db/client'
-import { organizations, stores } from '../../server/db/schema'
+import { organizations, sepayIntegrations, storePaymentAccounts, stores } from '../../server/db/schema'
 import { loadProductDTOs } from '../../server/services/catalog/product-view'
 import { getPublicMenu } from '../../server/services/catalog/public-menu'
 import { resetDb } from '../support/db'
 import { createCategory, createOptionGroup, createProduct, createTenant, createZone } from '../support/fixtures'
 import { findForbiddenKeys } from '../support/json'
+import { setupBankQr } from '../support/payment-fixtures'
 
 const db = () => getDb()
 
@@ -51,6 +52,7 @@ describe('getPublicMenu — content', () => {
       modes: { dineIn: true, pickup: true, delivery: { enabled: false, available: false } },
       categories: [],
       products: [],
+      bankQrEnabled: false,
     })
   })
 
@@ -159,5 +161,24 @@ describe('public catalog boundaries', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ id: p.id, active: false, optionGroups: [{ values: [{ active: false }] }] })
     expect(await loadProductDTOs(db(), scope, { productId: p.id, publicOnly: true })).toEqual([])
+  })
+})
+
+
+describe('public payment availability', () => {
+  it('offers bank transfer only for a verified account on an ACTIVE live integration, without exposing setup data', async () => {
+    const t = await createTenant('payment-menu')
+    expect((await getPublicMenu(db(), t.store.slug)).bankQrEnabled).toBe(false)
+    const { account, integration } = await setupBankQr(t.store)
+    const menu = await getPublicMenu(db(), t.store.slug)
+    expect(menu.bankQrEnabled).toBe(true)
+    expect(findForbiddenKeys(menu)).toEqual([])
+    const json = JSON.stringify(menu)
+    for (const value of [account.id, account.accountNumber, integration.id, integration.webhookEndpointKey]) expect(json).not.toContain(value)
+    await db().update(sepayIntegrations).set({ environment: 'test' }).where(eq(sepayIntegrations.id, integration.id))
+    expect((await getPublicMenu(db(), t.store.slug)).bankQrEnabled).toBe(false)
+    await db().update(sepayIntegrations).set({ environment: 'live' }).where(eq(sepayIntegrations.id, integration.id))
+    await db().update(storePaymentAccounts).set({ verifiedAt: null }).where(eq(storePaymentAccounts.id, account.id))
+    expect((await getPublicMenu(db(), t.store.slug)).bankQrEnabled).toBe(false)
   })
 })

@@ -12,3 +12,5 @@ export function appBaseUrl(): string {
 export function inviteRequiresVerifiedEmail(): boolean {
   return process.env.INVITE_REQUIRE_VERIFIED_EMAIL !== 'false'
 }
+
+export const getAppBaseUrl = appBaseUrl

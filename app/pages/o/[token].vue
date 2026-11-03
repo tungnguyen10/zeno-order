@@ -10,6 +10,23 @@ useHead({ title: 'Theo dõi đơn hàng', meta: [{ name: 'robots', content: 'noi
 const route = useRoute()
 const token = String(route.params.token ?? '')
 const origin = useRequestURL().origin
+const toast = useToast()
+const repaying = shallowRef(false)
+
+async function repay() {
+  if (repaying.value) return
+  repaying.value = true
+  try {
+    await $fetch(`/api/public/orders/${encodeURIComponent(token)}/payment-attempts`, { method: 'POST' })
+  }
+  catch (err) {
+    toast.add({ color: 'error', title: extractApiError(err).message })
+  }
+  finally {
+    try { await refresh() }
+    finally { repaying.value = false }
+  }
+}
 
 const order = ref<PublicOrderView | null>(null)
 const loading = ref(true)
@@ -79,6 +96,23 @@ useVisiblePolling(refresh, { intervalMs: 4000, enabled: () => !notFound.value &&
         title="Quán đã hủy đơn này"
         description="Nếu bạn đã chuyển tiền, vui lòng liên hệ quán để được hoàn lại."
       />
+
+      <OrderPaymentPanel
+        v-if="order.paymentMethod === 'BANK_QR' && order.status === 'AWAITING_PAYMENT' && order.paymentStatus === 'PENDING'"
+        :qr="order.qr"
+        :total-vnd="order.totalVnd"
+        :public-code="order.publicCode"
+        :repaying="repaying"
+        @repay="repay"
+        @expired="refresh"
+      />
+      <ZAlert
+        v-if="order.paymentMethod === 'BANK_QR' && ['REVIEW_REQUIRED', 'REFUND_DUE', 'REFUNDED'].includes(order.paymentStatus)"
+        color="info"
+        :title="order.paymentStatus === 'REVIEW_REQUIRED' ? 'Cửa hàng đang đối soát thanh toán' : 'Cửa hàng đang xử lý hoàn tiền'"
+        description="Nếu bạn đã chuyển khoản, đừng chuyển lại. Vui lòng liên hệ cửa hàng để được hỗ trợ."
+      />
+      <ZAlert v-if="order.paymentStatus === 'PAID'" color="success" title="Đã thanh toán" description="Cửa hàng đã nhận được thanh toán của bạn." />
 
       <ZCard v-if="order.status !== 'CANCELLED'" variant="elevated" padding="md">
         <OrderStatusSteps :status="order.status" :fulfillment-type="order.fulfillmentType" />

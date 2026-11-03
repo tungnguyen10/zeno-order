@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Form, FormError } from '@nuxt/ui'
-import type { FulfillmentType } from '#shared/enums'
+import type { FulfillmentType, PaymentMethod } from '#shared/enums'
 import { formatVnd } from '#shared/money'
 import { CHECKOUT_LIMITS, checkoutInputSchema } from '#shared/schemas/checkout'
 import type { CartStaleDetails, CreateOrderResponse } from '#shared/types/order'
@@ -14,6 +14,7 @@ const props = defineProps<{
   slug: string
   storeName: string
   acceptingOrders: boolean
+  bankQrEnabled?: boolean
   dineInEnabled: boolean
   pickupEnabled: boolean
   deliveryEnabled: boolean
@@ -31,6 +32,7 @@ const formRef = useTemplateRef<Form<CheckoutForm>>('formRef')
 const form = reactive<CheckoutForm>({ customer: { name: '', phone: '', address: '' }, deliveryZoneId: null, note: '' })
 const mode = ref<FulfillmentType>('PICKUP')
 const submitting = ref(false)
+const paymentMethod = shallowRef<PaymentMethod>('PAY_ON_RECEIPT')
 const notice = ref<Notice | null>(null)
 
 const atTable = computed(() => props.dineInEnabled && !!props.tableToken && !!props.tableLabel)
@@ -46,6 +48,14 @@ const zone = computed(() => props.deliveryZones.find(item => item.id === form.de
 const zoneItems = computed(() => props.deliveryZones.map(item => ({ label: `${item.name} · ${formatVnd(item.feeVnd)}`, value: item.id })))
 const deliveryFeeVnd = computed(() => (mode.value === 'DELIVERY' ? (zone.value?.feeVnd ?? 0) : 0))
 const totalVnd = computed(() => cart.subtotalVnd.value + deliveryFeeVnd.value)
+const canPayQr = computed(() => props.bankQrEnabled === true && totalVnd.value > 0)
+watch(canPayQr, (available) => {
+  if (!available) paymentMethod.value = 'PAY_ON_RECEIPT'
+})
+const paymentItems = computed(() => [
+  { value: 'PAY_ON_RECEIPT' as const, label: 'Trả tiền khi nhận món' },
+  ...(canPayQr.value ? [{ value: 'BANK_QR' as const, label: 'Chuyển khoản (VietQR)' }] : []),
+])
 const canSubmit = computed(() => props.acceptingOrders && modes.value.length > 0 && cart.lines.value.length > 0 && !cart.hasStale.value)
 
 function hydrateForm() {
@@ -81,7 +91,7 @@ const payload = () => buildCheckoutPayload({
   form,
   fulfillmentType: mode.value,
   tableToken: props.tableToken,
-  paymentMethod: 'PAY_ON_RECEIPT',
+  paymentMethod: paymentMethod.value,
   deliveryFeeVnd: deliveryFeeVnd.value,
 })
 
@@ -162,6 +172,10 @@ function handleError(err: unknown) {
     case 'NOT_FOUND':
       notice.value = { color: 'warning', title: 'Quán đang tạm nghỉ', description: 'Giỏ hàng của bạn vẫn được giữ. Hãy thử lại khi quán mở cửa.' }
       return
+    case 'PAYMENT_METHOD_UNAVAILABLE':
+      paymentMethod.value = 'PAY_ON_RECEIPT'
+      notice.value = { color: 'warning', title: 'Chuyển khoản đang tạm ngưng', description: 'Bạn có thể trả tiền khi nhận món. Giỏ hàng vẫn được giữ.' }
+      return emit('refresh')
     case 'MODE_DISABLED':
       notice.value = { color: 'warning', title: 'Quán không nhận đơn theo hình thức này lúc này', description: 'Hãy thử hình thức khác.' }
       return emit('refresh')
@@ -315,10 +329,22 @@ function handleError(err: unknown) {
           </ZFormField>
         </UForm>
 
-        <p class="flex items-center gap-2 text-sm text-muted">
-          <UIcon name="i-lucide-banknote" class="size-4" />
-          Thanh toán: trả tiền khi nhận món
-        </p>
+        <fieldset class="flex flex-col gap-2">
+          <legend class="mb-2 text-sm font-medium">Thanh toán</legend>
+          <div role="radiogroup" aria-label="Hình thức thanh toán" class="grid gap-2">
+            <ZButton
+              v-for="item in paymentItems"
+              :key="item.value"
+              role="radio"
+              :aria-checked="paymentMethod === item.value"
+              :variant="paymentMethod === item.value ? 'primary' : 'secondary'"
+              :disabled="submitting"
+              @click="paymentMethod = item.value"
+            >
+              {{ item.label }}
+            </ZButton>
+          </div>
+        </fieldset>
 
         <dl class="flex flex-col gap-1 text-sm">
           <div class="flex justify-between">

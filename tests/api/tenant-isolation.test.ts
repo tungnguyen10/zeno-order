@@ -5,7 +5,8 @@ import { fetch, setup } from '@nuxt/test-utils/e2e'
 import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { closeDb, getDb } from '../../server/db/client'
-import { orders, stores } from '../../server/db/schema'
+import { orders, sepayIntegrations, stores } from '../../server/db/schema'
+import { createIntegration, createPaymentAccount } from '../support/payment-fixtures'
 import { createTestAuth } from '../support/auth'
 import { resetDb } from '../support/db'
 import { addStaff, createCategory, createOptionGroup, createProduct, createStore, createTable, createTenant, createUser, createZone } from '../support/fixtures'
@@ -1063,5 +1064,103 @@ describe('PR4 remaining authentication and full team mutation matrix', () => {
     const result = await call('DELETE', `/api/stores/${ids.storeA1}/team/invitations/${created.body.invitation.id}`, tokens[actor])
     expect(result.status).toBe(status)
     if (status !== 200) expect(result.body).toMatchObject({ code: errorCodes[status] })
+  })
+})
+
+describe('payment setup routes (owner only)', () => {
+  const refs = {} as { accountA1: string, integrationA: string, accountB: string, integrationB: string }
+
+  beforeAll(async () => {
+    const [storeB] = await getDb().select({ orgId: stores.orgId }).from(stores).where(eq(stores.id, ids.storeB))
+    refs.accountA1 = (await createPaymentAccount({ id: ids.storeA1, orgId: ids.orgA })).id
+    refs.integrationA = (await createIntegration({ id: ids.orgA })).id
+    refs.accountB = (await createPaymentAccount({ id: ids.storeB, orgId: storeB!.orgId })).id
+    refs.integrationB = (await createIntegration({ id: storeB!.orgId })).id
+  })
+
+  const storeRoutes: { name: string, method: string, path: () => string, body?: unknown }[] = [
+    { name: 'GET payment-accounts', method: 'GET', path: () => `/api/stores/${ids.storeA1}/payment-accounts` },
+    { name: 'POST payment-accounts', method: 'POST', path: () => `/api/stores/${ids.storeA1}/payment-accounts`, body: { bankCode: 'ACB', accountNumber: '1122334455', accountHolder: 'NGUYEN VAN B' } },
+    { name: 'PATCH payment-accounts/:id', method: 'PATCH', path: () => `/api/stores/${ids.storeA1}/payment-accounts/${refs.accountA1}`, body: { accountHolder: 'DOI TEN' } },
+    { name: 'POST payment-accounts/:id/check', method: 'POST', path: () => `/api/stores/${ids.storeA1}/payment-accounts/${refs.accountA1}/check` },
+    { name: 'POST payment-accounts/:id/confirm-qr', method: 'POST', path: () => `/api/stores/${ids.storeA1}/payment-accounts/${refs.accountA1}/confirm-qr` },
+  ]
+
+  describe.each(storeRoutes)('$name', ({ method, path, body }) => {
+    it('no token → 401', async () => {
+      expect(await call(method, path(), null, body)).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+    })
+
+    it.each<[Actor, number]>([
+      ['staffA1', 403],
+      ['staffA2', 404],
+      ['disabledA1', 404],
+      ['ownerB', 404],
+    ])('%s → %i', async (actor, status) => {
+      const res = await call(method, path(), tokens[actor], body)
+      expect(res.status).toBe(status)
+      expect(res.body).toMatchObject({ code: errorCodes[status] })
+    })
+  })
+
+  it('denied callers changed nothing', async () => {
+    const res = await call('GET', `/api/stores/${ids.storeA1}/payment-accounts`, tokens.ownerA)
+    expect(res.status).toBe(200)
+    expect(res.body.account).toMatchObject({ id: refs.accountA1, accountHolder: 'NGUYEN VAN A' })
+  })
+
+  it('an account id of store A1 is a 404 under store A2, even for the owner of both', async () => {
+    for (const [method, suffix] of [['PATCH', ''], ['POST', '/check'], ['POST', '/confirm-qr']] as const) {
+      const res = await call(method, `/api/stores/${ids.storeA2}/payment-accounts/${refs.accountA1}${suffix}`, tokens.ownerA, method === 'PATCH' ? { accountHolder: 'X Y' } : suffix === '/confirm-qr' ? { revision: 'a'.repeat(64) } : undefined)
+      expect(res).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    }
+    expect((await call('GET', `/api/stores/${ids.storeA2}/payment-accounts`, tokens.ownerA)).body).toEqual({ account: null })
+  })
+
+  it('a malformed account id is 404, not 400/500', async () => {
+    const res = await call('POST', `/api/stores/${ids.storeA1}/payment-accounts/not-a-uuid/check`, tokens.ownerA)
+    expect(res).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+  })
+
+  const orgRoutes: { name: string, method: string, path: () => string, body?: unknown }[] = [
+    { name: 'GET sepay-integrations', method: 'GET', path: () => `/api/organizations/${ids.orgA}/sepay-integrations` },
+    { name: 'POST sepay-integrations', method: 'POST', path: () => `/api/organizations/${ids.orgA}/sepay-integrations`, body: {} },
+    { name: 'GET sepay-integrations/:id', method: 'GET', path: () => `/api/organizations/${ids.orgA}/sepay-integrations/${refs.integrationA}` },
+    { name: 'PUT sepay-integrations/:id/secret', method: 'PUT', path: () => `/api/organizations/${ids.orgA}/sepay-integrations/${refs.integrationA}/secret`, body: { hmacSecret: 'whsec_matrix_0123456789' } },
+    { name: 'POST sepay-integrations/:id/accounts', method: 'POST', path: () => `/api/organizations/${ids.orgA}/sepay-integrations/${refs.integrationA}/accounts`, body: { paymentAccountId: refs.accountA1 } },
+    { name: 'POST sepay-integrations/:id/activate', method: 'POST', path: () => `/api/organizations/${ids.orgA}/sepay-integrations/${refs.integrationA}/activate` },
+  ]
+
+  describe.each(orgRoutes)('$name', ({ method, path, body }) => {
+    it('no token → 401', async () => {
+      expect(await call(method, path(), null, body)).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } })
+    })
+
+    it.each<[Actor]>([['staffA1'], ['staffA2'], ['disabledA1'], ['ownerB']])('%s → 404 (not an owner of the org)', async (actor) => {
+      const res = await call(method, path(), tokens[actor], body)
+      expect(res).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    })
+  })
+
+  it('ownerA cannot read, write or link across orgs', async () => {
+    const base = `/api/organizations/${ids.orgA}/sepay-integrations`
+    expect(await call('GET', `${base}/${refs.integrationB}`, tokens.ownerA)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
+    expect(await call('PUT', `${base}/${refs.integrationB}/secret`, tokens.ownerA, { hmacSecret: 'whsec_cross_0123456789' })).toMatchObject({ status: 404 })
+    expect(await call('POST', `${base}/${refs.integrationB}/activate`, tokens.ownerA)).toMatchObject({ status: 404 })
+    expect(await call('POST', `${base}/${refs.integrationA}/accounts`, tokens.ownerA, { paymentAccountId: refs.accountB })).toMatchObject({ status: 404 })
+    expect(await call('POST', `${base}/${refs.integrationB}/accounts`, tokens.ownerA, { paymentAccountId: refs.accountA1 })).toMatchObject({ status: 404 })
+    const [untouched] = await getDb().select().from(sepayIntegrations).where(eq(sepayIntegrations.id, refs.integrationB))
+    expect(untouched!.encryptedHmacSecret).toBeNull()
+  })
+
+  it('treats another org\'s real integration exactly like a random id', async () => {
+    const real = await call('GET', `/api/organizations/${ids.orgA}/sepay-integrations/${refs.integrationB}`, tokens.ownerA)
+    const random = await call('GET', `/api/organizations/${ids.orgA}/sepay-integrations/${randomUUID()}`, tokens.ownerA)
+    expect(real).toEqual(random)
+  })
+
+  it('a malformed integration id is 404', async () => {
+    expect(await call('GET', `/api/organizations/${ids.orgA}/sepay-integrations/not-a-uuid`, tokens.ownerA))
+      .toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } })
   })
 })
