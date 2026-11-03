@@ -151,7 +151,7 @@ Body theo PRD §7. Service `ordering.createOrder`:
 
 ### 6.2. Payment attempt & QR
 - TTL `stores.payment_ttl_minutes` (15).
-- QR image: `https://qr.sepay.vn/img?acc=<acc>&bank=<bank>&amount=<amount>&des=<payment_code>` — URL dựng ở server; xác minh format với docs SePay khi implement.
+- QR image (đã xác minh 2026-11-01): `https://vietqr.app/img?acc=<acc>&bank=<bin>&amount=<amount>&des=<transfer_content>&template=qronly` (nguồn: developer.sepay.vn/vi/tien-ich-khac/tao-qr-code; `qr.sepay.vn/img` trả cùng ảnh). `bank` truyền `bin` trong `banks.json`; ngân hàng lạ trả `200 text/html` nên server tự kiểm tra danh sách. `acc` là số VA nếu tài khoản có VA (bắt buộc với BIDV, MSB, OCB, KienLongBank), ngược lại là số tài khoản. `transfer_content` = `payment_code`, riêng VietinBank là `SEVQR <payment_code>`. URL dựng ở server từ bản chụp trong `payment_attempts`.
 - "Thanh toán lại" sau hết hạn: attempt mới (mã mới); attempt cũ `SUPERSEDED`/`EXPIRED` nhưng vẫn match được khi tiền đến muộn.
 
 ### 6.3. Webhook — `POST /api/webhooks/sepay/:endpointKey`
@@ -240,8 +240,8 @@ PR 5–6 không merge khi chưa có test HMAC, replay, sai account, duplicate pa
 RLS, gửi email (mời staff, thông báo), WebSocket/push, PWA, Neon Functions, mọi mục "Không làm" ở PRD §1.
 
 ## 13. Điểm cần xác minh khi implement
-- Định dạng mã thanh toán SePay (`ZO` + 8) khớp cấu hình prefix/độ dài.
-- URL/tham số QR `qr.sepay.vn`.
+- ~~Định dạng mã thanh toán SePay~~ Đã xác minh: tiền tố 2–5 ký tự, hậu tố 1–30, loại "Số nguyên"/"Số và chữ"; `ZO` + 8 `[A-Z0-9]` khớp mẫu {`ZO`, 8–8, Số và chữ}. Còn mở: mã chỉ toàn chữ/toàn số (kiểm bằng Test mode, PR5 Task 13).
+- ~~URL/tham số QR~~ Đã xác minh (xem §6.2). Còn mở: ảnh `template=qronly` trên app ngân hàng thật; `accountNumber` trong webhook của ngân hàng VA là số gốc hay số VA; scheme header `Authorization` của `userapi.sepay.vn/v2` (xác minh ở PR6 Task 4).
 - Header/format chữ ký webhook HMAC và field payload hiện hành.
 - Field/định danh của API giao dịch SePay v2 cho reconcile.
 - API `@neon/auth` cho Nuxt/Vue (client không phụ thuộc React) và cách lấy JWT.

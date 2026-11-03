@@ -5,6 +5,7 @@ import type { DbOrTx } from '../../db/client'
 import { orderItems, orders, stores } from '../../db/schema'
 import { AppError } from '../../utils/errors'
 import { hashToken } from '../../utils/tokens'
+import { getActiveQrForOrder } from '../payments/attempts'
 
 // Tokens are 32 random bytes in base64url; anything else cannot match, so skip the database.
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{20,64}$/
@@ -77,6 +78,8 @@ export async function getPublicOrderView(db: DbOrTx, token: string): Promise<Pub
     totalVnd: order.totalVnd,
     createdAt: order.createdAt.toISOString(),
     store: { name: order.storeName, slug: order.storeSlug },
-    qr: null,
+    qr: order.paymentMethod === 'BANK_QR' && order.status === 'AWAITING_PAYMENT' && order.paymentStatus === 'PENDING'
+      ? await getActiveQrForOrder(db, { storeId: order.storeId, orderId: order.id })
+      : null,
   }
 }

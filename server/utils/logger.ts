@@ -1,9 +1,11 @@
-const SENSITIVE_KEY = /phone|address|secret|token|password|authorization|signature|cookie|api[_-]?key|hmac|encryption|jwt|session|credential|private[_-]?key/i
+const SENSITIVE_KEY = /phone|address|secret|token|password|authorization|signature|cookie|api[_-]?key|hmac|encryption|jwt|session|credential|private[_-]?key|endpoint[_-]?key/i
 const CONNECTION_STRING = /\b(postgres(?:ql)?):\/\/\S+/gi
+const WEBHOOK_PATH = /(\/api\/webhooks\/sepay\/)[^\s/?#"']+/gi
+const ORDER_TOKEN_PATH = /(\/api\/public\/orders\/)[^\s/?#"']+/gi
 const MAX_DEPTH = 6
 
 function redactString(value: string): string {
-  return value.replace(CONNECTION_STRING, '$1://[REDACTED]')
+  return value.replace(CONNECTION_STRING, '$1://[REDACTED]').replace(WEBHOOK_PATH, '$1[REDACTED]').replace(ORDER_TOKEN_PATH, '$1[REDACTED]')
 }
 
 export function redact(value: unknown, depth = 0): unknown {
@@ -30,7 +32,7 @@ type Level = 'info' | 'warn' | 'error'
 function write(level: Level, msg: string, ctx?: Record<string, unknown>) {
   const line = JSON.stringify({
     level,
-    msg,
+    msg: redactString(msg),
     time: new Date().toISOString(),
     ...(ctx ? (redact(ctx) as Record<string, unknown>) : {}),
   })

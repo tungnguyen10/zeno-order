@@ -36,6 +36,8 @@ export interface PublicCategory {
 }
 
 export interface PublicMenu {
+  /** Whether the store can currently receive real customer bank transfers. */
+  bankQrEnabled?: boolean
   store: { name: string, slug: string, isAcceptingOrders: boolean, logoUrl: string | null }
   modes: PublicModes
   categories: PublicCategory[]

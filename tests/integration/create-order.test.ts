@@ -198,7 +198,7 @@ describe('createOrder — store, mode, table, zone, payment checks', () => {
     expect((await appError(place(deliveryBody(menu, { deliveryZoneId: otherMenu.zone.id })))).code).toBe('INVALID_ZONE')
   })
 
-  it('422 PAYMENT_METHOD_UNAVAILABLE for BANK_QR until PR5 and creates nothing', async () => {
+  it('422 PAYMENT_METHOD_UNAVAILABLE for BANK_QR without payment setup and creates nothing', async () => {
     expect(await appError(place(pickupBody(menu, { paymentMethod: 'BANK_QR' })))).toMatchObject({ code: 'PAYMENT_METHOD_UNAVAILABLE', status: 422 })
     expect(await countOf(orders)).toBe(0)
   })

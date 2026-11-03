@@ -5254,14 +5254,16 @@ git commit -m "test(payment-setup): add payment setup e2e and record verified Se
 
 ## PR5 Exit Checklist
 
-- [ ] Chủ quán nhập **ngân hàng + số tài khoản + tên → "Kiểm tra" → "Đúng tên, xác nhận"** là xong phần tài khoản; phần SePay đi tiếp theo trạng thái (kết nối → dán Secret → chờ giao dịch đầu tiên → "Bật nhận chuyển khoản").
-- [ ] Secret SePay: chỉ ghi, mã hoá AES-256-GCM; không có route/DTO/log/lỗi nào trả hoặc in secret, ciphertext hay endpoint key (Task 4, 6, 9 đều có test).
-- [ ] BANK_QR chỉ khả dụng khi tài khoản đã QR-check + `verified_at` + integration `ACTIVE`; tạo đơn BANK_QR không bao giờ để lại đơn mồ côi khi 422.
-- [ ] Đơn `AWAITING_PAYMENT` không xuất hiện ở tab `new`, không chuyển tiếp được bằng `PATCH status`; có ở tab `awaiting_payment`.
-- [ ] QR đúng ngân hàng (`bin`), số tiền (từ `orders.total_vnd`), mã `ZO…`; VietinBank có `SEVQR`; ngân hàng VA dùng số VA; test hàm thuần + so khớp với DB + API.
-- [ ] Mã cũ không bao giờ bị xoá/tái sử dụng; đúng một attempt `PENDING` mỗi đơn dù bấm đồng thời.
-- [ ] Mỗi route protected mới có hàng trong `tests/api/tenant-isolation.test.ts`; route public có test quét khoá JSON.
-- [ ] Migration `payment_setup` đúng một file, `db:check` ổn, đã áp dụng lên branch `test`.
+**Thực thi 2026-11-03:** phần code và kiểm thử tự động đã hoàn tất; xem [implementation và kết quả](../specs/2026-11-03-pr5-payment-setup-implementation.md). Người dùng chọn giữ M1–M6 chờ kiểm thử thật, PR ở draft. Interface `check`/`confirm-qr` dùng thêm `revision` để ngăn xác nhận thông tin tài khoản đã sửa ở tab khác.
+
+- [x] Chủ quán nhập **ngân hàng + số tài khoản + tên → "Kiểm tra" → "Đúng tên, xác nhận"** là xong phần tài khoản; phần SePay đi tiếp theo trạng thái (kết nối → dán Secret → chờ giao dịch đầu tiên → "Bật nhận chuyển khoản").
+- [x] Secret SePay: chỉ ghi, mã hoá AES-256-GCM; không có route/DTO/log/lỗi nào trả hoặc in secret, ciphertext hay endpoint key (Task 4, 6, 9 đều có test).
+- [x] BANK_QR chỉ khả dụng khi tài khoản đã QR-check + `verified_at` + integration `ACTIVE`; tạo đơn BANK_QR không bao giờ để lại đơn mồ côi khi 422.
+- [x] Đơn `AWAITING_PAYMENT` không xuất hiện ở tab `new`, không chuyển tiếp được bằng `PATCH status`; có ở tab `awaiting_payment`.
+- [x] QR đúng ngân hàng (`bin`), số tiền (từ `orders.total_vnd`), mã `ZO…`; VietinBank có `SEVQR`; ngân hàng VA dùng số VA; test hàm thuần + so khớp với DB + API.
+- [x] Mã cũ không bao giờ bị xoá/tái sử dụng; đúng một attempt `PENDING` mỗi đơn dù bấm đồng thời.
+- [x] Mỗi route protected mới có hàng trong `tests/api/tenant-isolation.test.ts`; route public có test quét khoá JSON.
+- [x] Migration `payment_setup` đúng một file, `db:check` ổn, đã áp dụng lên branch `test`.
 - [ ] Spec §6.2/§13 và roadmap đã cập nhật; bảng kiểm thủ công M1–M6 đã điền vào mô tả PR.
 
 ## Self-review (plan ↔ spec/roadmap)

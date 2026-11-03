@@ -19,7 +19,7 @@
 | 2 | `feat(catalog)` | [2026-10-31-zeno-v1-03-catalog.md](./2026-10-31-zeno-v1-03-catalog.md) | **Chi tiết, sẵn sàng thực thi** |
 | 3 | `feat(order)` | [2026-10-31-zeno-v1-04-ordering.md](./2026-10-31-zeno-v1-04-ordering.md) | **Hoàn tất triển khai PR3**; 60 E2E đạt, xem [kết quả](../specs/2026-11-02-pr3-ordering-implementation.md) |
 | 4 | `feat(owner)` | [2026-10-31-zeno-v1-05-owner-ops.md](./2026-10-31-zeno-v1-05-owner-ops.md) | **Hoàn tất triển khai PR4**; xem [kết quả](../specs/2026-11-02-pr4-owner-ops-implementation.md) |
-| 5 | `feat(payment-setup)` | [2026-10-31-zeno-v1-06-payment-setup.md](./2026-10-31-zeno-v1-06-payment-setup.md) | **Chi tiết (13 task)**; có mục "Verified external facts" SePay/VietQR, các mục UNVERIFIED có gate |
+| 5 | `feat(payment-setup)` | [2026-10-31-zeno-v1-06-payment-setup.md](./2026-10-31-zeno-v1-06-payment-setup.md) | **Đã triển khai code (13 task)**; [kết quả](../specs/2026-11-03-pr5-payment-setup-implementation.md), draft chờ checklist ngân hàng/SePay thật |
 | 6 | `feat(payment-webhook)` | [2026-10-31-zeno-v1-07-payment-webhook.md](./2026-10-31-zeno-v1-07-payment-webhook.md) | **Chi tiết (12 task)**; gate UNVERIFIED ở Task 0 |
 | 7 | `test(hardening)` | [2026-10-31-zeno-v1-08-hardening.md](./2026-10-31-zeno-v1-08-hardening.md) | **Chi tiết (16 task)** |
 
@@ -182,9 +182,11 @@ Mỗi dòng là một input hoặc tình huống người dùng thật sẽ gặ
 
 ## PR5 — `feat(payment-setup)`: tài khoản nhận tiền, SePay integration, payment attempt, VietQR
 
+**Triển khai:** xem [PR5 implementation](../specs/2026-11-03-pr5-payment-setup-implementation.md) cho interface thực tế, xác minh và các gate kiểm thử ngân hàng/SePay thật còn chờ trước merge.
+
 **Exit:** owner cấu hình tài khoản ngân hàng + SePay; khách chọn VietQR thì thấy QR đúng bank, số tiền và mã thanh toán; đơn ở trạng thái `AWAITING_PAYMENT` và không vào queue pha chế.
 
-**Trước khi viết plan chi tiết:** đọc lại 4 trang SePay trong spec §13 (mã thanh toán, URL QR, HMAC, payload). Cập nhật spec nếu tài liệu khác với giả định.
+**Đã viết chi tiết:** [2026-10-31-zeno-v1-06-payment-setup.md](./2026-10-31-zeno-v1-06-payment-setup.md). Lệch so với outline: `payment_attempts` lưu bản chụp tài khoản; `store_payment_accounts` thêm `va_number`, `qr_checked_at`; `sepay_integrations` thêm `last_valid_webhook_at`, `secret_updated_at`, `activated_at`; thêm route `check`, `confirm-qr`, `activate`, các `GET` cho UI; bắt buộc VA cho BIDV/MSB/OCB/KienLongBank và `SEVQR` cho VietinBank (theo tài liệu SePay).
 
 **Migration `payment_setup`:** `store_payment_accounts`, `sepay_integrations` (cột `encrypted_hmac_secret`, `encrypted_api_token`, `key_version`, `status`, `webhook_endpoint_key` unique), `integration_accounts`, `payment_attempts` (`payment_code` unique toàn hệ thống, `status`, `expires_at`, FK `(store_id, order_id)`). FK `order_payments.bank_transaction_id` thêm ở PR6.
 

@@ -10,6 +10,7 @@ import { deliveryZones, orderEvents, orderItems, orders, productOptionGroups, pr
 import { decryptSecret, encryptSecret } from '../../utils/crypto'
 import { AppError } from '../../utils/errors'
 import { generateToken, hashToken } from '../../utils/tokens'
+import { createPaymentAttempt, getActiveQrForOrder, requireBankQrReceiver } from '../payments/attempts'
 import { CHECKOUT_RATE_LIMIT, MAX_PUBLIC_CODE_ATTEMPTS } from './constants'
 import { generatePublicCode } from './public-code'
 import { consumeRateLimit } from './rate-limit'
@@ -67,7 +68,7 @@ export async function createOrder(
 
   // A retry must never be throttled, so the idempotency lookup comes before the rate limit.
   const existing = await findByIdempotencyKey(db, store.id, input.idempotencyKey)
-  if (existing) return replay(existing)
+  if (existing) return replay(db, existing)
 
   try {
     const result = await db.transaction(tx => placeOrder(tx, store, input, args.ip, deps))
@@ -79,7 +80,7 @@ export async function createOrder(
     // Safety net: the advisory lock below already serialises same-key requests.
     if (isUniqueViolation(err, 'orders_store_idem_uq')) {
       const winner = await findByIdempotencyKey(db, store.id, input.idempotencyKey)
-      if (winner) return replay(winner)
+      if (winner) return replay(db, winner)
     }
     throw err
   }
@@ -88,7 +89,7 @@ export async function createOrder(
 async function placeOrder(tx: Tx, store: PublicStore, input: CheckoutInput, ip: string | null, deps: CreateOrderDeps): Promise<CreateOrderResult | { error: AppError }> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`order:${store.id}:${input.idempotencyKey}`}))`)
   const existing = await findByIdempotencyKey(tx, store.id, input.idempotencyKey)
-  if (existing) return replay(existing)
+  if (existing) return replay(tx, existing)
 
   const allowed = await consumeRateLimit(tx, `checkout:${store.id}:${hashIp(ip)}`, CHECKOUT_RATE_LIMIT)
   if (!allowed) return { error: new AppError('RATE_LIMITED', 'Bạn đặt quá nhanh, vui lòng thử lại sau ít phút') }
@@ -102,7 +103,7 @@ async function placeOrder(tx: Tx, store: PublicStore, input: CheckoutInput, ip: 
     if (error instanceof AppError) return { error }
     throw error
   }
-  const { payment, place, lines, totals } = prepared
+  const { payment, place, lines, totals, bankQrReceiver } = prepared
 
   const guestToken = generateToken()
   const makeCode = deps.generatePublicCode ?? generatePublicCode
@@ -161,10 +162,19 @@ async function placeOrder(tx: Tx, store: PublicStore, input: CheckoutInput, ip: 
     toState: order.status,
     metadata: { paymentMethod: input.paymentMethod, fulfillmentType: input.fulfillmentType, itemCount: lines.length },
   })
+  const qr = bankQrReceiver
+    ? await createPaymentAttempt(tx, {
+      orgId: store.orgId,
+      storeId: store.id,
+      orderId: order.id,
+      amountVnd: order.totalVnd,
+      receiver: bankQrReceiver,
+    })
+    : undefined
   await deps.beforeCommit?.(tx)
 
   return {
-    response: { publicCode: order.publicCode, guestToken, status: order.status, paymentStatus: order.paymentStatus, totalVnd: order.totalVnd },
+    response: { publicCode: order.publicCode, guestToken, status: order.status, paymentStatus: order.paymentStatus, totalVnd: order.totalVnd, ...(qr ? { qr } : {}) },
     replayed: false,
   }
 }
@@ -184,7 +194,13 @@ async function prepareOrder(tx: Tx, store: PublicStore, input: CheckoutInput) {
     throw new AppError('CART_STALE', 'Phí giao hoặc tổng tiền đã thay đổi, vui lòng kiểm tra lại', details)
   }
 
-  return { payment, place, lines, totals }
+  const bankQrReceiver = input.paymentMethod === 'BANK_QR'
+    ? await requireBankQrReceiver(tx, { orgId: store.orgId, storeId: store.id })
+    : null
+  if (bankQrReceiver && totals.totalVnd === 0) {
+    throw new AppError('PAYMENT_METHOD_UNAVAILABLE', 'Đơn 0đ không thanh toán bằng chuyển khoản')
+  }
+  return { payment, place, lines, totals, bankQrReceiver }
 }
 
 async function findPublicStore(db: DbOrTx, slug: string): Promise<PublicStore> {
@@ -213,7 +229,7 @@ async function findByIdempotencyKey(db: DbOrTx, storeId: string, key: string): P
   return row
 }
 
-function replay(order: OrderRow): CreateOrderResult {
+async function replay(db: DbOrTx, order: OrderRow): Promise<CreateOrderResult> {
   return {
     response: {
       publicCode: order.publicCode,
@@ -221,6 +237,9 @@ function replay(order: OrderRow): CreateOrderResult {
       status: order.status,
       paymentStatus: order.paymentStatus,
       totalVnd: order.totalVnd,
+      ...(order.paymentMethod === 'BANK_QR' && order.status === 'AWAITING_PAYMENT' && order.paymentStatus === 'PENDING'
+        ? { qr: (await getActiveQrForOrder(db, { storeId: order.storeId, orderId: order.id })) ?? undefined }
+        : {}),
     },
     replayed: true,
   }
@@ -235,10 +254,10 @@ function assertStoreAcceptsOrders(store: PublicStore, input: CheckoutInput): voi
   if (!store[MODE_FLAG[input.fulfillmentType]]) throw new AppError('MODE_DISABLED', 'Quán không nhận đơn theo hình thức này')
 }
 
-/** The only place that decides the initial status; PR5 adds the BANK_QR branch here. */
+/** Initial status depends on the payment method; receiver readiness is checked before any order write. */
 function resolvePayment(input: CheckoutInput): { status: OrderStatus, paymentStatus: PaymentStatus } {
   if (input.paymentMethod === 'BANK_QR') {
-    throw new AppError('PAYMENT_METHOD_UNAVAILABLE', 'Quán chưa hỗ trợ thanh toán chuyển khoản')
+    return { status: 'AWAITING_PAYMENT', paymentStatus: 'PENDING' }
   }
   return { status: 'NEW', paymentStatus: 'UNPAID' }
 }
