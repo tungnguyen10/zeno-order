@@ -58,7 +58,7 @@ test('visitor is redirected to login with a return path', async ({ page }) => {
 test('owner signs up, onboards, edits settings, survives reload and signs out', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 360, height: 740 })
   const stamp = `${Date.now().toString(36)}${testInfo.project.name === 'mobile-safari' ? 's' : 'c'}`
-  const email = `e2e+${stamp}@example.com`
+  const email = `e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}@example.com`
   const slug = `e2e-${stamp}`
 
   await page.goto('/signup')
@@ -155,11 +155,11 @@ test('switching accounts without signing out never shows the previous user\'s st
   const stampB = uniqueStamp(testInfo, 'b')
 
   await page.goto('/signup')
-  await fillSignUp(page, 'Chủ Quán A', `e2e+${stampA}@example.com`)
+  await fillSignUp(page, 'Chủ Quán A', `e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stampA}@example.com`)
   await onboard(page, 'Quán A E2E', `e2e-${stampA}`)
 
   await clientNavigate(page, '/signup')
-  await fillSignUp(page, 'Chủ Quán B', `e2e+${stampB}@example.com`)
+  await fillSignUp(page, 'Chủ Quán B', `e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stampB}@example.com`)
   await expect(page.getByRole('button', { name: 'Tạo cửa hàng' })).toBeVisible()
   await expect(page).toHaveURL(/\/onboarding$/)
   await onboard(page, 'Quán B E2E', `e2e-${stampB}`)

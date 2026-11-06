@@ -19,14 +19,14 @@ test('owner and staff serve a COD order end to end', async ({ browser }, testInf
   test.slow()
   const stamp = stampOf(testInfo)
   const slug = `ops-${stamp}`
-  const staffEmail = `e2e+${stamp}staff@example.com`
+  const staffEmail = `e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}staff@example.com`
   const context = { viewport: { width: 360, height: 740 }, locale: 'vi-VN', timezoneId: 'Asia/Ho_Chi_Minh', baseURL: testInfo.project.use.baseURL }
   const ownerContext = await browser.newContext(context)
   const staffContext = await browser.newContext(context)
   const owner = await ownerContext.newPage()
   const staff = await staffContext.newPage()
 
-  await signUpAndOnboard(owner, { name: 'Chủ Quán Ops', email: `e2e+${stamp}owner@example.com`, storeName: 'Quán Ops', slug })
+  await signUpAndOnboard(owner, { name: 'Chủ Quán Ops', email: `e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}owner@example.com`, storeName: 'Quán Ops', slug })
 
   // Hai đơn COD vừa vào quán.
   const orderA = await seedCodOrder(slug, { fulfillmentType: 'PICKUP', totalVnd: 60_000, subtotalVnd: 60_000 })
@@ -149,15 +149,15 @@ test('an invitation link used with the wrong account is rejected and stays usabl
   const owner = await ownerContext.newPage()
   const stranger = await strangerContext.newPage()
 
-  await signUpAndOnboard(owner, { name: 'Chủ Quán W', email: `e2e+${stamp}owner@example.com`, storeName: 'Quán W', slug })
+  await signUpAndOnboard(owner, { name: 'Chủ Quán W', email: `e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}owner@example.com`, storeName: 'Quán W', slug })
   await owner.goto('/app/team')
-  await owner.getByLabel('Email nhân viên').fill(`e2e+${stamp}right@example.com`)
+  await owner.getByLabel('Email nhân viên').fill(`e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}right@example.com`)
   await owner.getByRole('button', { name: 'Tạo lời mời' }).click()
   const invitePath = new URL(await owner.getByLabel('Link lời mời').inputValue()).pathname
 
   await stranger.goto(`/signup?redirect=${encodeURIComponent(invitePath)}`)
   await stranger.getByLabel('Tên của bạn').fill('Người Lạ')
-  await stranger.getByLabel('Email').fill(`e2e+${stamp}stranger@example.com`)
+  await stranger.getByLabel('Email').fill(`e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}stranger@example.com`)
   await stranger.getByLabel('Mật khẩu', { exact: true }).fill(PASSWORD)
   await stranger.getByRole('button', { name: 'Tạo tài khoản' }).click()
   await expect(stranger).toHaveURL(new RegExp(`${invitePath}$`))
@@ -166,7 +166,7 @@ test('an invitation link used with the wrong account is rejected and stays usabl
 
   // Lời mời vẫn còn hiệu lực cho người đúng email.
   await owner.reload()
-  await expect(owner.getByText(`e2e+${stamp}right@example.com`)).toBeVisible()
+  await expect(owner.getByText(`e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}right@example.com`)).toBeVisible()
 
   await ownerContext.close()
   await strangerContext.close()

@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs'
+import { assertTestDatabase, loadEnvFileOverride } from './tests/support/test-env'
 import { defineConfig, devices } from '@playwright/test'
 
-if (existsSync('.env.test')) process.loadEnvFile('.env.test')
+loadEnvFileOverride('.env.test')
+assertTestDatabase()
 
 const PORT = 3100
 

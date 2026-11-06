@@ -10,7 +10,7 @@ export function uniqueStamp(testInfo: TestInfo): string {
 /** Real Neon Auth sign-up + onboarding; ends on /app/orders at a 360px viewport. */
 export async function signUpAndOnboard(page: Page, testInfo: TestInfo, storeName: string): Promise<{ slug: string, email: string }> {
   const stamp = uniqueStamp(testInfo)
-  const email = `e2e+${stamp}@example.com`
+  const email = `e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}@example.com`
   const slug = `e2e-${stamp}`
   await page.setViewportSize({ width: 360, height: 740 })
   await page.goto('/signup')

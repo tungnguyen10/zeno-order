@@ -23,7 +23,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "typecheck:functions": "tsc --project tsconfig.functions.json",
-    "build:hardening": "nuxt build",
+    "build:hardening": "node --import tsx scripts/build-hardening.ts",
     "test:hardening": "npm run build:hardening && vitest run --project hardening",
     "test:e2e:hardening": "playwright test --config playwright.hardening.config.ts",
     "check:env": "node scripts/check-env.mjs",

@@ -14,7 +14,7 @@ test('public menu Lighthouse mobile budget on production build', async ({ playwr
   await createProduct(tenant.store, { name: 'Trà sữa thử nghiệm' })
   const browser = await playwright.chromium.launch({ args: ['--remote-debugging-port=9222'] })
   try {
-    const result = await lighthouse(`http://127.0.0.1:3200/s/${tenant.store.slug}`, { port: 9222, output: ['html', 'json'], onlyCategories: ['performance', 'accessibility', 'best-practices'], formFactor: 'mobile', throttlingMethod: 'simulate' })
+    const result = await lighthouse(`http://localhost:3100/s/${tenant.store.slug}`, { port: 9222, output: ['html', 'json'], onlyCategories: ['performance', 'accessibility', 'best-practices'], formFactor: 'mobile', throttlingMethod: 'simulate' })
     if (!result) throw new Error('Lighthouse did not produce a report')
     mkdirSync('test-results', { recursive: true })
     writeFileSync('test-results/lighthouse.html', result.report[0]!)

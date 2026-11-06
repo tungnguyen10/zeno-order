@@ -35,8 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: checks
     strategy:
-      # Stop further ephemeral DB work after a gate fails; success still requires every slot.
-      fail-fast: true
+      # Collect independent DB/API results even when a provider browser gate fails.
+      fail-fast: false
       max-parallel: 2
       matrix:
         include:
@@ -59,6 +59,7 @@ jobs:
       ZENO_TEST_DB: '1'
       APP_BASE_URL: http://localhost:3100
       CI_BRANCH: ci-${{ github.run_id }}-${{ matrix.slot }}
+      CI_TEST_AUTH_BRANCH: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -98,7 +99,7 @@ jobs:
         run: npx tsx scripts/reset-ci-schema.ts
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit migrate
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit check
-      - name: Provision isolated Auth and storage after app schema rebuild
+      - name: Provision isolated storage after app schema rebuild
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
@@ -107,12 +108,14 @@ jobs:
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-        run: |
-          if [ "${{ matrix.slot }}" = "browser" ]; then
-            node scripts/export-ci-env.mjs postgres auth object-storage
-          else
-            node scripts/export-ci-env.mjs postgres object-storage
-          fi
+        run: node scripts/export-ci-env.mjs postgres object-storage
+      - name: Bind designated non-production test Auth for browser journeys
+        id: testauth
+        if: matrix.slot == 'browser'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: node scripts/shared-ci-auth.mjs bind
       - name: Payment burst smoke regression
         if: matrix.slot == 'integration-1'
         run: npx vitest run --project integration tests/integration/match-transaction.test.ts -t 'a burst across several orders'
@@ -129,6 +132,12 @@ jobs:
         env:
           INVITE_REQUIRE_VERIFIED_EMAIL: 'false'
         run: npx playwright test --config playwright.production.config.ts
+      - name: Clean only this run's synthetic test Auth users
+        if: always() && matrix.slot == 'browser' && steps.testauth.outcome == 'success'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: node scripts/shared-ci-auth.mjs cleanup
       - if: always() && (matrix.slot == 'hardening' || matrix.slot == 'browser')
         uses: actions/upload-artifact@v4
         with:
