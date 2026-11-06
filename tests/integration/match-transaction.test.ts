@@ -209,12 +209,23 @@ describe('matchTransaction — concurrency (Review Focus #1, #2)', () => {
 
   it('a burst across several orders (each paid twice) never deadlocks and pays each order once', async () => {
     const orderIds: string[] = []
-    const txIds: string[] = []
+    const inputs: ReturnType<typeof bankTxInput>[] = []
     for (let i = 0; i < 3; i++) {
       const { order, attempt } = await createAwaitingOrder(setup)
       orderIds.push(order.id)
-      for (let j = 0; j < 3; j++) txIds.push(await receive({ paymentCode: attempt.paymentCode }))
+      for (let j = 0; j < 3; j++) inputs.push(bankTxInput(setup, { paymentCode: attempt.paymentCode }))
     }
+    // This test exercises the matcher, not nine sequential Tx1 round trips. Recording/dedupe
+    // has its own burst tests. Bulk fixtures leave the 30-second budget for the real race.
+    const inserted = await db().insert(bankTransactions).values(inputs.map(input => ({
+      orgId: input.orgId, integrationId: input.integrationId, bankCode: input.bankCode,
+      providerTransactionId: `WEBHOOK:${input.providerTransactionId}`, source: input.source,
+      direction: input.direction, bankAccountNumber: input.bankAccountNumber, subAccount: input.subAccount,
+      amountVnd: input.amountVnd, paymentCode: input.paymentCode, content: input.content,
+      referenceCode: input.referenceCode, transactionDate: input.transactionDate, rawPayloadJson: input.rawPayload,
+      reconciliationStatus: 'RECEIVED' as const,
+    }))).returning({ id: bankTransactions.id })
+    const txIds = inserted.map(row => row.id)
     const outcomes = await Promise.all(txIds.map(id => matchTransaction(db(), id)))
     expect(outcomes.filter(o => o.kind === 'MATCHED')).toHaveLength(3)
     expect(outcomes.filter(o => o.kind === 'REVIEW')).toHaveLength(6)

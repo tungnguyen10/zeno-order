@@ -122,6 +122,9 @@ jobs:
           JS
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit migrate
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit check
+      - name: Payment burst smoke regression
+        if: matrix.slot == 'integration-1'
+        run: npx vitest run --project integration tests/integration/match-transaction.test.ts -t 'a burst across several orders'
       - run: npx vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}
       - if: always()
         uses: neondatabase/delete-branch-action@v3
