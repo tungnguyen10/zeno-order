@@ -1,6 +1,7 @@
+import { getWebhookAuthMode } from './webhook-auth-settings'
 import { and, asc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm'
-import type { CreateIntegrationInput, SepaySecretInput } from '#shared/schemas/payment'
-import type { SepayIntegrationDto } from '#shared/types/payment'
+import type { CreateIntegrationInput, SepaySecretInput } from '../../../shared/schemas/payment'
+import type { SepayIntegrationDto } from '../../../shared/types/payment'
 import type { Db, DbOrTx } from '../../db/client'
 import { isUniqueViolation } from '../../db/errors'
 import { integrationAccounts, sepayIntegrations, storePaymentAccounts } from '../../db/schema'
@@ -35,6 +36,7 @@ async function toDto(db: DbOrTx, row: IntegrationRow, baseUrl: string): Promise<
     secretUpdatedAt: row.secretUpdatedAt?.toISOString() ?? null,
     lastValidWebhookAt: row.lastValidWebhookAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
+    webhookAuthMode: await getWebhookAuthMode(db, row.id),
     webhookUrl: buildWebhookUrl(baseUrl, row.webhookEndpointKey),
     accountIds: links.map(link => link.id),
   }

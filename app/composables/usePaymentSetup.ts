@@ -8,7 +8,7 @@ export interface PaymentAccountDraft {
   vaNumber: string | null
 }
 
-type Busy = 'check' | 'confirm' | 'connect' | 'secret' | 'link' | 'activate'
+type Busy = 'check' | 'confirm' | 'connect' | 'secret' | 'link' | 'activate' | 'authmode'
 
 export function usePaymentSetup(ids: { storeId: MaybeRefOrGetter<string>, orgId: MaybeRefOrGetter<string> }) {
   const api = useApi()
@@ -122,11 +122,18 @@ export function usePaymentSetup(ids: { storeId: MaybeRefOrGetter<string>, orgId:
     }
   }, 'Đã lưu Secret Key')
 
+  const setAuthMode = (mode: 'HMAC' | 'APIKEY') => guarded('authmode', async () => {
+    if (!integration.value) return
+    await api(`${orgPath()}/${integration.value.id}/webhook-auth-mode`, { method: 'PUT', body: { mode } })
+    integration.value = await api<SepayIntegrationDto>(`${orgPath()}/${integration.value.id}`)
+    await reloadAccount()
+  }, 'Đã đổi xác thực; gửi webhook thử để xác minh lại')
+
   const activate = () => guarded('activate', async () => {
     if (!integration.value) return
     integration.value = await api<SepayIntegrationDto>(`${orgPath()}/${integration.value.id}/activate`, { method: 'POST' })
     await reloadAccount()
   }, 'Đã bật nhận chuyển khoản')
 
-  return { account, integration, check, loading, loadFailed, busy, fieldErrors, load, runCheck, confirm, connect, link, saveSecret, activate }
+  return { account, integration, check, loading, loadFailed, busy, fieldErrors, load, runCheck, confirm, connect, link, saveSecret, activate, setAuthMode }
 }

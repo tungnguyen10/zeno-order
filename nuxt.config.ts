@@ -51,6 +51,7 @@ export default defineNuxtConfig({
     compressPublicAssets: { gzip: true, brotli: true },
   },
   routeRules: {
+    '/api/webhooks/**': { headers: { 'cache-control': 'no-store' } },
     '/app/**': { ssr: false },
     '/login': { ssr: false },
     '/signup': { ssr: false },

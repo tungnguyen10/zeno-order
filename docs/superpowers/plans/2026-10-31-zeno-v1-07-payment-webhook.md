@@ -1,5 +1,8 @@
 # ZENO Mini Order V1 — PR6 Payment Webhook: SePay webhook, matching, cron, đối soát Implementation Plan
 
+> **Implementation override — 2026-11-06:** User selected Neon Scheduled Function Triggers, not Vercel Cron. The current implementation and regression requirements are recorded in [PR6 implementation](../specs/2026-11-06-pr6-payment-webhook-implementation.md). It supersedes the original code samples below for locking, alias identity/dedupe gating, ping handling, receiver/environment checks, refund accounting, scan coverage and scheduler deployment. Unchecked test/production gates remain open; do not copy those older samples over the hardened implementation.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Chuyển khoản VietQR đúng được xác nhận đúng **một lần** (kể cả khi SePay gửi trùng đồng thời); tiền lạ, thiếu/thừa, đến muộn sau hết hạn hoặc sau khi hủy không bao giờ biến mất mà vào hàng đợi đối soát để chủ quán xử lý bằng 1–2 thao tác.

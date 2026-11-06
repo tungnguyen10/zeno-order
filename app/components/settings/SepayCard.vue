@@ -8,6 +8,7 @@ const props = defineProps<{
   busy: string | null
 }>()
 const emit = defineEmits<{
+  'auth-mode': [mode: 'HMAC' | 'APIKEY']
   'connect': []
   'save-secret': [input: { hmacSecret: string, apiToken?: string }]
   'link': []
@@ -62,6 +63,12 @@ function saveSecret() {
         </ZBadge>
       </div>
 
+      <div class="flex flex-wrap items-center gap-2" aria-label="Xác thực webhook">
+        <ZButton v-for="mode in (['HMAC', 'APIKEY'] as const)" :key="mode" class="min-h-11" :variant="(integration.webhookAuthMode ?? 'HMAC') === mode ? 'primary' : 'secondary'" :aria-pressed="(integration.webhookAuthMode ?? 'HMAC') === mode" :disabled="busy !== null" @click="emit('auth-mode', mode)">
+          {{ mode === 'HMAC' ? 'HMAC-SHA256' : 'API Key' }}
+        </ZButton>
+      </div>
+      <p class="text-sm text-muted">Đổi phương thức xác thực sẽ tạm dừng nhận đơn VietQR cho đến khi nhận webhook hợp lệ. API Key của webhook khác Token API đối soát.</p>
       <template v-if="showSecretForm">
         <ol class="flex list-decimal flex-col gap-2 ps-5 text-sm">
           <li>
@@ -70,12 +77,12 @@ function saveSecret() {
           </li>
           <li>
             Trên <strong>Tích hợp → Webhooks → Thêm webhook</strong>: dán URL bên dưới, loại sự kiện <strong>Tiền vào</strong>,
-            xác thực <strong>HMAC-SHA256</strong>.
+            xác thực <strong>{{ integration.webhookAuthMode === 'APIKEY' ? 'API Key' : 'HMAC-SHA256' }}</strong>.
           </li>
           <li>SePay chỉ hiện đầy đủ một lần: sao chép Secret Key và dán vào ô bên dưới ngay.</li>
         </ol>
         <AppCopyField :value="integration.webhookUrl" label="URL webhook" />
-        <ZFormField label="Secret Key (HMAC-SHA256)" name="hmacSecret" required>
+        <ZFormField :label="integration.webhookAuthMode === 'APIKEY' ? 'API Key webhook' : 'Secret Key (HMAC-SHA256)'" name="hmacSecret" required>
           <ZInput v-model="hmacSecret" type="password" size="lg" autocomplete="off" />
         </ZFormField>
         <ZFormField label="Token API đối soát (không bắt buộc)" name="apiToken" help="Dùng để đối soát giao dịch bị lỡ webhook.">

@@ -4,10 +4,20 @@ const allNavItems: { label: string, to: string, icon: string, ownerOnly?: boolea
   { label: 'Thực đơn', to: '/app/menu', icon: 'i-lucide-utensils-crossed' },
   { label: 'Báo cáo', to: '/app/reports', icon: 'i-lucide-chart-column' },
   { label: 'Nhân viên', to: '/app/team', icon: 'i-lucide-users', ownerOnly: true },
+  { label: 'Đối soát', to: '/app/reconciliation', icon: 'i-lucide-banknote', ownerOnly: true },
   { label: 'Cài đặt', to: '/app/settings', icon: 'i-lucide-settings' },
 ]
 const { activeStore } = useActiveStore()
 const navItems = computed(() => allNavItems.filter(item => !item.ownerOnly || activeStore.value?.role === 'OWNER'))
+const bottomNavItems = computed(() => navItems.value.filter(item => item.to !== '/app/team'))
+const { count: reconciliationCount, refresh: refreshBadge } = useReconciliationBadge()
+let badgeTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  void refreshBadge()
+  badgeTimer = setInterval(() => { if (document.visibilityState === 'visible') void refreshBadge() }, 60_000)
+})
+onBeforeUnmount(() => clearInterval(badgeTimer))
+watch(() => activeStore.value?.id, () => { void refreshBadge() })
 </script>
 
 <template>
@@ -33,6 +43,7 @@ const navItems = computed(() => allNavItems.filter(item => !item.ownerOnly || ac
             >
               <UIcon :name="item.icon" class="size-5" />
               {{ item.label }}
+              <span v-if="item.to === '/app/reconciliation' && reconciliationCount > 0" class="rounded-full bg-error px-1.5 text-xs text-white" :aria-label="`${reconciliationCount} mục cần xử lý`">{{ reconciliationCount }}</span>
             </NuxtLink>
           </li>
         </ul>
@@ -50,7 +61,7 @@ const navItems = computed(() => allNavItems.filter(item => !item.ownerOnly || ac
       class="fixed inset-x-0 bottom-0 z-20 border-t border-default bg-default/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
       <ul class="mx-auto flex max-w-lg">
-        <li v-for="item in navItems" :key="item.to" class="flex-1">
+        <li v-for="item in bottomNavItems" :key="item.to" class="flex-1">
           <NuxtLink
             :to="item.to"
             class="group flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-medium text-muted aria-[current=page]:font-semibold aria-[current=page]:text-primary"
@@ -59,6 +70,7 @@ const navItems = computed(() => allNavItems.filter(item => !item.ownerOnly || ac
               <UIcon :name="item.icon" class="size-5" />
             </span>
             {{ item.label }}
+              <span v-if="item.to === '/app/reconciliation' && reconciliationCount > 0" class="rounded-full bg-error px-1.5 text-xs text-white" :aria-label="`${reconciliationCount} mục cần xử lý`">{{ reconciliationCount }}</span>
           </NuxtLink>
         </li>
       </ul>

@@ -24,6 +24,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run typecheck:functions
       - run: npm run test:unit
       - run: npm run test:nuxt
       - run: npm run build
@@ -65,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           trap 'rm -f .env.ci' EXIT
-          npx -y neon@8.4.1 env pull --project-id "$NEON_PROJECT_ID" --branch "$CI_BRANCH" --file .env.ci
+          npx -y neon@8.4.1 env pull --project-id "$NEON_PROJECT_ID" --branch "$CI_BRANCH" --file .env.ci --service postgres --service auth --service object-storage
           node <<'JS'
           const fs = require('node:fs')
           const { parseEnv } = require('node:util')
