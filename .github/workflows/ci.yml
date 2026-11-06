@@ -24,6 +24,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run typecheck:functions
       - run: npm run test:unit
       - run: npm run test:nuxt
       - run: npm run build
@@ -31,6 +32,19 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slot: integration-1
+            project: integration
+            shard: 1/2
+          - slot: integration-2
+            project: integration
+            shard: 2/2
+          - slot: api
+            project: api
+            shard: 1/1
     env:
       ZENO_TEST_DB: '1'
       APP_BASE_URL: http://localhost:3100
@@ -54,18 +68,18 @@ jobs:
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           parent_branch: production
-          branch_name: ci-${{ github.run_id }}
+          branch_name: ci-${{ github.run_id }}-${{ matrix.slot }}
           expires_at: ${{ steps.expiry.outputs.at }}
           api_key: ${{ secrets.NEON_API_KEY }}
       - name: Export branch env
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-          CI_BRANCH: ci-${{ github.run_id }}
+          CI_BRANCH: ci-${{ github.run_id }}-${{ matrix.slot }}
         run: |
           set -euo pipefail
           trap 'rm -f .env.ci' EXIT
-          npx -y neon@8.4.1 env pull --project-id "$NEON_PROJECT_ID" --branch "$CI_BRANCH" --file .env.ci
+          npx -y neon@8.4.1 env pull --project-id "$NEON_PROJECT_ID" --branch "$CI_BRANCH" --file .env.ci --service postgres --service auth --service object-storage
           node <<'JS'
           const fs = require('node:fs')
           const { parseEnv } = require('node:util')
@@ -108,11 +122,13 @@ jobs:
           JS
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit migrate
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit check
-      - run: npx vitest run --project integration
-      - run: npx vitest run --project api
+      - name: Payment burst smoke regression
+        if: matrix.slot == 'integration-1'
+        run: npx vitest run --project integration tests/integration/match-transaction.test.ts -t 'a burst across several orders'
+      - run: npx vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}
       - if: always()
         uses: neondatabase/delete-branch-action@v3
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
-          branch: ci-${{ github.run_id }}
+          branch: ci-${{ github.run_id }}-${{ matrix.slot }}
           api_key: ${{ secrets.NEON_API_KEY }}

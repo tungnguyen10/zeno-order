@@ -1,5 +1,5 @@
 import { and, eq, ne } from 'drizzle-orm'
-import type { SepayEnvironment, SepayIntegrationStatus } from '#shared/payment'
+import type { SepayEnvironment, SepayIntegrationStatus } from '../../../shared/payment'
 import type { DbOrTx } from '../../db/client'
 import { sepayIntegrations } from '../../db/schema'
 import { decryptSecret } from '../../utils/crypto'

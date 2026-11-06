@@ -39,6 +39,7 @@ export interface PaymentAccountCheck {
 }
 
 export interface SepayIntegrationDto {
+  webhookAuthMode?: 'HMAC' | 'APIKEY'
   id: string
   name: string
   environment: SepayEnvironment

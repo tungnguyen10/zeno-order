@@ -21,7 +21,8 @@
     "db:seed": "tsx --tsconfig .nuxt/tsconfig.server.json scripts/seed-catalog.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:check": "drizzle-kit check"
+    "db:check": "drizzle-kit check",
+    "typecheck:functions": "tsc --project tsconfig.functions.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",

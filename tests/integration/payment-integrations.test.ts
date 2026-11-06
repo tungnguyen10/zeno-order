@@ -83,7 +83,7 @@ describe('saveIntegrationSecret', () => {
     expect(dto).toMatchObject({ status: 'TESTING', hasSecret: true, hasApiToken: true })
     expect(Object.keys(dto).sort()).toEqual([
       'accountIds', 'environment', 'hasApiToken', 'hasSecret', 'id', 'lastValidWebhookAt',
-      'name', 'secretUpdatedAt', 'status', 'updatedAt', 'webhookUrl',
+      'name', 'secretUpdatedAt', 'status', 'updatedAt', 'webhookAuthMode', 'webhookUrl',
     ])
     expectNoneOf(JSON.stringify(dto), [SECRET, TOKEN])
 

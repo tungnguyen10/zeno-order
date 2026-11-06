@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{ storeId: string, orgId: string }>()
 
-const { account, integration, check, loading, loadFailed, busy, fieldErrors, load, runCheck, confirm, connect, link, saveSecret, activate }
+const { account, integration, check, loading, loadFailed, busy, fieldErrors, load, runCheck, confirm, connect, link, saveSecret, activate, setAuthMode }
   = usePaymentSetup({ storeId: () => props.storeId, orgId: () => props.orgId })
 const readiness = computed(() => paymentReadiness(account.value, integration.value))
 
@@ -39,6 +39,7 @@ watch(() => [props.storeId, props.orgId], load)
         :busy="busy"
         @connect="connect"
         @save-secret="saveSecret"
+        @auth-mode="setAuthMode"
         @link="link"
         @activate="activate"
         @refresh="load"

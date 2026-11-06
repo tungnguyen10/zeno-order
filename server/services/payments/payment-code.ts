@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto'
-import { ACCOUNT_NUMBER_PATTERN, findBank } from '#shared/banks'
-import { assertVnd } from '#shared/money'
+import { ACCOUNT_NUMBER_PATTERN, findBank } from '../../../shared/banks'
+import { assertVnd } from '../../../shared/money'
 
 export const PAYMENT_CODE_PREFIX = 'ZO'
 const SUFFIX_LENGTH = 8

@@ -3,6 +3,16 @@ import { STATUS_LABELS } from '#shared/order-flow'
 import type { OrderEventView } from '#shared/types/orders'
 import { extractApiError } from './api-error'
 
+const PAYMENT_EVENT_LABELS: Record<string, string> = {
+  PAYMENT_CONFIRMED: 'Đã nhận chuyển khoản',
+  PAYMENT_ASSIGNED: 'Chủ quán gán khoản chuyển khoản vào đơn',
+  PAYMENT_MANUAL_BANK: 'Chủ quán xác nhận đã nhận chuyển khoản',
+  PAYMENT_REVIEW_REQUIRED: 'Có khoản chuyển khoản cần đối soát',
+  PAYMENT_REVIEW_DISMISSED: 'Đã xử lý khoản chuyển khoản không khớp',
+  PAYMENT_REFUNDED: 'Đã hoàn tiền cho khách',
+  AUTO_CANCELLED_UNPAID: 'Tự hủy vì quá hạn thanh toán',
+}
+
 export const PAYMENT_METHOD_LABELS = {
   CASH: 'tiền mặt',
   SEPAY: 'chuyển khoản',
@@ -36,6 +46,7 @@ export function describeEvent(event: OrderEventView): string {
   }
   if (event.eventType === 'PAYMENT_RECORDED') return 'Đã thu tiền mặt'
   if (event.eventType === 'CREATED') return 'Khách đặt đơn'
+  if (PAYMENT_EVENT_LABELS[event.eventType]) return PAYMENT_EVENT_LABELS[event.eventType]!
   return event.toState ? STATUS_LABELS[event.toState] : event.eventType
 }
 

@@ -1,6 +1,6 @@
 import { isError as isH3Error } from 'h3'
 import { ZodError } from 'zod'
-import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '#shared/errors'
+import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '../../shared/errors'
 
 export class AppError extends Error {
   constructor(
