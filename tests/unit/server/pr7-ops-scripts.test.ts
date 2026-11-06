@@ -1,3 +1,4 @@
+import { safeNeonDiagnostic } from '../../../scripts/lib/branch-attestation.mjs'
 import { describe, expect, it } from 'vitest'
 import { validateEnv } from '../../../scripts/lib/env-check.mjs'
 import { auditFindings } from '../../../scripts/lib/audit-filter.mjs'
@@ -40,4 +41,10 @@ it('smoke only GETs read-only URLs and rejects an unhealthy private status', asy
   expect(await runSmoke({ baseUrl: 'https://order.example.com', opsSecret: 'ops', fetchImpl })).toContain('Unexpected status for ops probe')
   expect(calls).toHaveLength(3)
   await expect(runSmoke({ baseUrl: 'http://localhost:3000', fetchImpl })).rejects.toThrow()
+})
+
+it('keeps CI provider diagnostics useful without printing URLs, credential lines or opaque keys', () => {
+  const result = safeNeonDiagnostic('ERROR validation failed\npostgresql://u:private@host/db\nAWS_SECRET_ACCESS_KEY=short-secret\nabcdefghijklmnopqrstuvwxyz0123456789\nInvalid config field')
+  expect(result).toContain('Invalid config field')
+  expect(result).not.toMatch(/private|short-secret|abcdefghijklmnopqrstuvwxyz/)
 })

@@ -1,12 +1,19 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { parseEnv } from 'node:util'
+import { parseEnv, stripVTControlCharacters } from 'node:util'
 import { spawnSync } from 'node:child_process'
+
+export function safeNeonDiagnostic(raw) {
+  return stripVTControlCharacters(String(raw || ''))
+    .split('\n').filter(line => !/secret|token|password|authorization|credential|api.?key/i.test(line))
+    .slice(-8).join('\n').replace(/(?:https?|postgres(?:ql)?):\/\/\S+/gi, '[URL]')
+    .replace(/[A-Za-z0-9+/_=-]{20,}/g, '[opaque]').slice(0, 1600)
+}
 
 export function neon(args, json = true) {
   const result = spawnSync('npx', ['-y', 'neon@8.4.1', ...args, '--project-id', process.env.NEON_PROJECT_ID, ...(json ? ['--output', 'json'] : [])], { encoding: 'utf8', maxBuffer: 5_000_000, timeout: 120_000 })
-  if (result.error || result.status !== 0) throw new Error('Neon operation failed; inspect provider console without printing credentials')
+  if (result.error || result.status !== 0) throw new Error('Neon operation failed', { cause: { exitCode: result.status, diagnostic: safeNeonDiagnostic(result.stderr) } })
   return json ? JSON.parse(result.stdout) : result.stdout
 }
 const identity = (value) => {
