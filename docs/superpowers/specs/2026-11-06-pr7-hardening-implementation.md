@@ -22,7 +22,7 @@ The original 16-task proposal had stale Vercel cron interfaces and unsafe single
 | 12 Existing journeys | desktop Chromium added; existing customer/owner/payment suites run with production browser config on all 3 projects |
 | 13 Operations/cron | Neon POST boundary retained, global scheduled leases + run-ID-fenced heartbeat; partial reconciliation fails; private status worst integration/checkpoint/backlog; optional read-only watcher, off until configured |
 | 14 Restore | dedicated quiescent synthetic `restore-source-*`, explicit endpoint attestation, no-finalize snapshot restore, exact table/migration data fingerprints, resource cleanup/report; Auth/storage/keys separately reviewed |
-| 15 Env separation | validator, private read-only smoke, CI schema-only branches; CI-only attested app-schema rebuild avoids missing journal rows and preserves Auth schema; isolated fresh app migrations |
+| 15 Env separation | validator, private read-only smoke, CI schema-only branches; CI-only attested app-schema rebuild avoids missing journal rows and refuses populated Auth schemas before removing empty managed Auth DDL for fresh CI provisioning; isolated fresh app migrations |
 | 16 Operations/pilot | operations, executable go-live checklist, pilot runbook/report, structural evidence validator; no false bank/restore/alert sign-off |
 
 ## Changes requiring particular review
@@ -63,3 +63,5 @@ Real SePay HMAC/API-key payloads, webhook integer/API UUID correlation, VA recei
 The first full run passed code checks but found that schema-only Neon branches do not inherit Auth integration; some concurrent branch creations also returned 422. CI now limits branch concurrency to two, exports/attests Postgres first, rebuilds empty app schemas and applies migrations before provisioning isolated Auth/storage with `neon.ci.ts` (no Functions/triggers), then exports full service credentials with masking. Only CI Auth permits local origins and signup without verification/email delivery. Cleanup runs only after successful branch creation; the branch TTL remains the crash safety net. These fixes do not restore production-data cloning or change a production service.
 
 Correlation IDs are now server-generated: caller-controlled request IDs could otherwise smuggle capabilities into error logs despite path redaction. The DB-failure logging regression verifies this boundary.
+
+Neon additionally verified that schema-only cloning retains empty `neon_auth` DDL while omitting its service integration. The CI rebuild now checks every managed Auth table for rows and refuses populated schemas, then drops only the empty managed schema on the attested ephemeral branch before provisioning fresh Auth. This is a CI-only preparation step, not an operations/production recovery procedure.

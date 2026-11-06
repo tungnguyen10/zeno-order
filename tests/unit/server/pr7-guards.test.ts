@@ -21,6 +21,8 @@ it('refuses production restore and production pilot seed without both explicit f
   expect(seed.status).toBe(1); expect(seed.stderr).toContain('Pilot seed refused')
   const restore = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/restore-drill.ts', 'production', '--execute'], { env, encoding: 'utf8', timeout: 10_000 })
   expect(restore.status).toBe(1); expect(restore.stderr).toContain('Restore drill refused')
+  const reset = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/reset-ci-schema.ts'], { env: { ...env, CI_BRANCH: 'production', GITHUB_ACTIONS: 'true' }, encoding: 'utf8', timeout: 10_000 })
+  expect(reset.status).toBe(1); expect(reset.stderr).toContain('CI schema reset refused')
 })
 it('keeps production activation opt-in and every go-live checklist row has a concrete verify command', () => {
   const ci = readFileSync('.github/workflows/ci.yml', 'utf8')
