@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PAYMENT_STEP_TITLES } from '~/utils/payment-readiness'
 const props = defineProps<{ storeId: string, orgId: string }>()
 
 const { account, integration, check, loading, loadFailed, busy, fieldErrors, load, runCheck, confirm, connect, link, saveSecret, activate, setAuthMode }

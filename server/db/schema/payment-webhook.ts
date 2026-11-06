@@ -105,3 +105,12 @@ export const paymentJobLeases = pgTable('payment_job_leases', {
   owner: uuid('owner').notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })
+
+// Operational metadata only. No tenant/payment/credential payloads.
+export const paymentJobRuns = pgTable('payment_job_runs', {
+  job: text('job').primaryKey(),
+  runId: uuid('run_id').notNull(),
+  lastStartedAt: timestamp('last_started_at', { withTimezone: true }).notNull(),
+  lastSucceededAt: timestamp('last_succeeded_at', { withTimezone: true }),
+  lastError: text('last_error'),
+}, t => [check('payment_job_runs_job_check', sql`${t.job} in ('expire', 'reconcile')`)])

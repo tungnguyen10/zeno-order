@@ -1,5 +1,6 @@
+import { clientIp } from '../../../utils/client-ip'
 import { readWebhookBody } from '../../../utils/webhook-body'
-import { getHeader, getRequestIP, getRouterParam, setHeader } from 'h3'
+import { getHeader, getRouterParam, setHeader } from 'h3'
 import { getDb, type Db } from '../../../db/client'
 import { loadIntegrationSecrets, findIntegrationByEndpointKey } from '../../../services/payments/integration-secrets'
 import { runWebhookProcessing } from '../../../services/payments/process-sepay-webhook'
@@ -23,7 +24,7 @@ async function reject(db: Db, ip: string, error: AppError): Promise<never> {
 export default defineApiHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
   const db = getDb()
-  const ip = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
+  const ip = clientIp(event)
   if (!(await allowWebhookTraffic(db, ip))) throw new AppError('RATE_LIMITED', 'Quá nhiều yêu cầu')
 
   const integration = await findIntegrationByEndpointKey(db, getRouterParam(event, 'key') ?? '')

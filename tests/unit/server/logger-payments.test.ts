@@ -17,8 +17,8 @@ describe('redact: sensitive paths inside strings', () => {
       .toBe('POST /api/webhooks/sepay/[REDACTED] failed')
   })
 
-  it('stops at the query string', () => {
-    expect(redact({ path: '/api/webhooks/sepay/KEY123?x=1' })).toEqual({ path: '/api/webhooks/sepay/[REDACTED]?x=1' })
+  it('redacts query values as well as the endpoint key', () => {
+    expect(redact({ path: '/api/webhooks/sepay/KEY123?x=1' })).toEqual({ path: '/api/webhooks/sepay/[REDACTED]?[REDACTED]' })
   })
 
   it('masks the guest token in order paths, including the payment-attempts sub-route', () => {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCountdown } from '~/utils/countdown'
 import { formatVnd } from '#shared/money'
 import type { PaymentQr } from '#shared/types/order'
 

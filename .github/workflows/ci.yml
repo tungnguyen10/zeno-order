@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -22,9 +22,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run audit:runtime
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run typecheck:functions
+      - run: npm run typecheck:hardening
       - run: npm run test:unit
       - run: npm run test:nuxt
       - run: npm run build
@@ -44,6 +46,12 @@ jobs:
             shard: 2/2
           - slot: api
             project: api
+            shard: 1/1
+          - slot: hardening
+            project: hardening
+            shard: 1/1
+          - slot: browser
+            project: browser
             shard: 1/1
     env:
       ZENO_TEST_DB: '1'
@@ -68,6 +76,7 @@ jobs:
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           parent_branch: production
+          branch_type: schema-only
           branch_name: ci-${{ github.run_id }}-${{ matrix.slot }}
           expires_at: ${{ steps.expiry.outputs.at }}
           api_key: ${{ secrets.NEON_API_KEY }}
@@ -120,12 +129,38 @@ jobs:
           }
           fs.appendFileSync(process.env.GITHUB_ENV, out)
           JS
+      - name: Rebuild app schemas on the attested empty CI branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          CI_BRANCH: ci-${{ github.run_id }}-${{ matrix.slot }}
+        run: npx tsx scripts/reset-ci-schema.ts
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit migrate
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit check
       - name: Payment burst smoke regression
         if: matrix.slot == 'integration-1'
         run: npx vitest run --project integration tests/integration/match-transaction.test.ts -t 'a burst across several orders'
-      - run: npx vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}
+      - if: matrix.slot == 'hardening' || matrix.slot == 'browser'
+        run: npm run build:hardening
+      - if: matrix.slot != 'browser'
+        run: npx vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}
+      - if: matrix.slot == 'browser'
+        run: npx playwright install --with-deps chromium webkit
+      - if: matrix.slot == 'browser'
+        run: npm run test:e2e:hardening
+      - name: Production browser journeys on three projects
+        if: matrix.slot == 'browser'
+        env:
+          INVITE_REQUIRE_VERIFIED_EMAIL: 'false'
+        run: npx playwright test --config playwright.production.config.ts
+      - if: always() && (matrix.slot == 'hardening' || matrix.slot == 'browser')
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr7-${{ matrix.slot }}-reports
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
       - if: always()
         uses: neondatabase/delete-branch-action@v3
         with:

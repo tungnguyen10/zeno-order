@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { customerStatusLabel, customerStatusTone, customerPaymentLabel, fulfillmentSummary } from '~/utils/order-labels'
 import { isTerminalStatus } from '#shared/enums'
 import { formatVnd } from '#shared/money'
 import type { PublicOrderView } from '#shared/types/order'

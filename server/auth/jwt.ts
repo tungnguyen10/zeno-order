@@ -51,7 +51,7 @@ export function getJwtVerifier(): JwtVerifier {
   if (cached) return cached
   const testJwks = process.env.AUTH_TEST_JWKS
   if (testJwks) {
-    if (process.env.VERCEL_ENV === 'production') {
+    if (process.env.VERCEL_ENV === 'production' || process.env.NEON_BRANCH === 'production' || (process.env.NODE_ENV === 'production' && !(process.env.ZENO_TEST_DB === '1' && process.env.NEON_BRANCH && process.env.NEON_BRANCH !== 'production'))) {
       throw new Error('AUTH_TEST_JWKS must not be set in production')
     }
     cached = createJwtVerifier({

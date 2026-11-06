@@ -1,0 +1,27 @@
+name: Optional operations watch
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+permissions:
+  contents: read
+jobs:
+  status:
+    # Explicitly opt in after the production endpoint, scheduler and alert recipient are verified.
+    # This watches Neon jobs; it does not run expiry/reconciliation itself.
+    if: vars.OPS_WATCH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Check deployment and private job status
+        env:
+          OPS_STATUS_SECRET: ${{ secrets.OPS_STATUS_SECRET }}
+          OPS_BASE_URL: ${{ vars.OPS_BASE_URL }}
+          OPS_STORE_SLUG: ${{ vars.OPS_STORE_SLUG }}
+        run: |
+          test -n "$OPS_STATUS_SECRET"
+          node scripts/smoke-prod.mjs "$OPS_BASE_URL" --slug "$OPS_STORE_SLUG"

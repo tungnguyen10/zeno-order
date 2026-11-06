@@ -18,6 +18,10 @@ process.env.AUTH_TEST_JWKS = auth.jwksJson
 // Mặc định production: bắt buộc email đã xác minh khi nhận lời mời (spec quy ước xuyên PR #7).
 process.env.INVITE_REQUIRE_VERIFIED_EMAIL = 'true'
 
+// This suite simulates an ingress that overwrites XFF to test distinct client IPs.
+// The production hardening suite separately proves untrusted XFF cannot bypass limits.
+process.env.TRUST_FORWARDED_FOR = '1'
+
 await setup({
   rootDir: fileURLToPath(new URL('../..', import.meta.url)),
   server: true,
