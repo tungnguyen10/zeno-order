@@ -87,7 +87,7 @@ export async function matchTransaction(db: Db, bankTransactionId: string): Promi
   const [tenantHint] = await db.select({ orgId: bankTransactions.orgId }).from(bankTransactions).where(eq(bankTransactions.id, bankTransactionId))
   if (!tenantHint) throw new AppError('NOT_FOUND', 'Không tìm thấy giao dịch')
   return db.transaction(async (tx) => {
-    await lockOrgPayments(tx, tenantHint.orgId)
+    await lockOrgPayments(tx, tenantHint.orgId, true)
     const [bt] = await tx.select().from(bankTransactions).where(eq(bankTransactions.id, bankTransactionId)).for('update')
     if (!bt) throw new AppError('NOT_FOUND', 'Không tìm thấy giao dịch')
     if (bt.reconciliationStatus !== 'RECEIVED') return { kind: 'SKIPPED', status: bt.reconciliationStatus }
