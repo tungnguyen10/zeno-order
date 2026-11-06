@@ -19,9 +19,10 @@ describe('GET /api/health', () => {
     expect(res.headers.get('x-request-id')).toMatch(/^[\w-]{8,64}$/)
   })
 
-  it('echoes a well-formed incoming x-request-id', async () => {
+  it('generates its own correlation ID instead of reflecting untrusted header values', async () => {
     const res = await fetch('/api/health', { headers: { 'x-request-id': 'req-12345678' } })
-    expect(res.headers.get('x-request-id')).toBe('req-12345678')
+    expect(res.headers.get('x-request-id')).not.toBe('req-12345678')
+    expect(res.headers.get('x-request-id')).toMatch(/^[a-f0-9-]{36}$/)
   })
 })
 

@@ -57,3 +57,9 @@ Real SePay HMAC/API-key payloads, webhook integer/API UUID correlation, VA recei
 - Runtime audit gate passes without high/critical exceptions. Moderate findings are not waived by this threshold; review their advisory report during maintenance. There is no claim that npm reports zero advisories.
 - Local Playwright browser download produced an invalid/truncated archive, so no local browser pass is claimed. CI browser installation/execution is still required.
 - New production HTTP/tenant/status and real Postgres tests are pending their isolated Neon CI execution. No production env, migration, schedule or pilot was activated.
+
+### CI environment correction
+
+The first full run passed code checks but found that schema-only Neon branches do not inherit Auth integration; some concurrent branch creations also returned 422. CI now limits branch concurrency to two, exports/attests Postgres first, rebuilds empty app schemas and applies migrations before provisioning isolated Auth/storage with `neon.ci.ts` (no Functions/triggers), then exports full service credentials with masking. Only CI Auth permits local origins and signup without verification/email delivery. Cleanup runs only after successful branch creation; the branch TTL remains the crash safety net. These fixes do not restore production-data cloning or change a production service.
+
+Correlation IDs are now server-generated: caller-controlled request IDs could otherwise smuggle capabilities into error logs despite path redaction. The DB-failure logging regression verifies this boundary.

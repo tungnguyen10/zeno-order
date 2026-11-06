@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
-import { chromium, expect, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import lighthouse from 'lighthouse'
 import { createProduct, createTenant } from '../support/fixtures'
 import { closeDb } from '../../server/db/client'
@@ -8,12 +8,11 @@ import { assertTestDatabase } from '../support/test-env'
 
 assertTestDatabase()
 test.afterAll(closeDb)
-test('public menu Lighthouse mobile budget on production build', async ({ browserName }, info) => {
-  expect(browserName).toBeTruthy()
+test('public menu Lighthouse mobile budget on production build', async ({ playwright }, info) => {
   test.skip(info.project.name !== 'mobile-chrome', 'Lighthouse uses Chromium mobile emulation once')
   const tenant = await createTenant('lighthouse')
   await createProduct(tenant.store, { name: 'Trà sữa thử nghiệm' })
-  const browser = await chromium.launch({ args: ['--remote-debugging-port=9222'] })
+  const browser = await playwright.chromium.launch({ args: ['--remote-debugging-port=9222'] })
   try {
     const result = await lighthouse(`http://127.0.0.1:3200/s/${tenant.store.slug}`, { port: 9222, output: ['html', 'json'], onlyCategories: ['performance', 'accessibility', 'best-practices'], formFactor: 'mobile', throttlingMethod: 'simulate' })
     if (!result) throw new Error('Lighthouse did not produce a report')

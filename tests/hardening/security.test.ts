@@ -49,6 +49,9 @@ describe('production response policy', () => {
     expect(result.text).not.toContain(canary.phone); expect(result.text).not.toContain(canary.address)
     expect(result.json).not.toHaveProperty('orgId'); expect(result.json).not.toHaveProperty('guestTokenEncrypted')
     expect(result.json).not.toHaveProperty('customerAddress')
+    const html = await api('GET', `/o/${guestToken}`)
+    expect(html.status).toBe(200)
+    for (const value of [canary.phone, canary.address, context().appEncryptionKey]) expect(html.text.includes(value), 'sensitive value in tracking HTML').toBe(false)
   })
   it('does not accept a cookie as API authentication (CSRF boundary)', async () => {
     const auth = await signer(); const jwt = await auth.sign({ sub: tenant.owner.userId })

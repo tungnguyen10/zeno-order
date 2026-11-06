@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { defineEventHandler, getHeader, setResponseHeader } from 'h3'
-
-const VALID_ID = /^[\w-]{8,64}$/
+import { defineEventHandler, setResponseHeader } from 'h3'
 
 export default defineEventHandler((event) => {
-  const incoming = getHeader(event, 'x-request-id')
-  const requestId = incoming && VALID_ID.test(incoming) ? incoming : randomUUID()
+  // Caller-controlled IDs can contain guest/webhook capabilities and later enter error logs.
+  const requestId = randomUUID()
   event.context.requestId = requestId
   setResponseHeader(event, 'x-request-id', requestId)
 })
