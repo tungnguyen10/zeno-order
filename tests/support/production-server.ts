@@ -26,7 +26,7 @@ export async function startProductionServer() {
       PAYMENT_JOBS_ENABLED: 'true', APP_ENCRYPTION_KEY: context.appEncryptionKey },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
-  child.stdout.pipe(output); child.stderr.pipe(output)
+  child.stdout.pipe(output, { end: false }); child.stderr.pipe(output, { end: false })
   let spawnFailed = false
   child.once('error', () => { spawnFailed = true })
   async function stop() {
@@ -36,8 +36,9 @@ export async function startProductionServer() {
       const kill = setTimeout(() => child.kill('SIGKILL'), 5000)
       await closed; clearTimeout(kill)
     }
+    const finished = once(output, 'finish')
     output.end()
-    await once(output, 'finish')
+    await finished
   }
   try {
     for (let i = 0; i < 120; i++) {
