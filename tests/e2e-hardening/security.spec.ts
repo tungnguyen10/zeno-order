@@ -67,6 +67,7 @@ test('authenticated owner board keeps CSP, a11y and touch controls working', asy
     document.addEventListener('securitypolicyviolation', event => target.cspViolations.push(event.effectiveDirective))
   })
   await signUpAndOnboard(page, info, 'Quán Hardening')
+  if (info.project.name === 'desktop-chrome') await page.setViewportSize({ width: 1365, height: 900 })
   await expect(page.getByTestId('active-store-name')).toHaveText('Quán Hardening')
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
   expect(results.violations.filter(item => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual([])

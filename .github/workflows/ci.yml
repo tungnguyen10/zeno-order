@@ -106,7 +106,12 @@ jobs:
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-        run: node scripts/export-ci-env.mjs postgres auth object-storage
+        run: |
+          if [ "${{ matrix.slot }}" = "browser" ]; then
+            node scripts/export-ci-env.mjs postgres auth object-storage
+          else
+            node scripts/export-ci-env.mjs postgres object-storage
+          fi
       - name: Payment burst smoke regression
         if: matrix.slot == 'integration-1'
         run: npx vitest run --project integration tests/integration/match-transaction.test.ts -t 'a burst across several orders'
