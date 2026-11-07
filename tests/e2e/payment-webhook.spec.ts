@@ -88,7 +88,7 @@ test('owner resolves unmatched money and a refund from the reconciliation screen
   await expect(assign).toBeVisible()
   expect((await assign.boundingBox())!.height).toBeGreaterThanOrEqual(44)
   await assign.dblclick()
-  await expect(page.getByText('Đã gán vào đơn')).toBeVisible()
+  await expect(page.getByText('Đã gán vào đơn', { exact: true })).toBeVisible()
   await expect.poll(async () => (await orderRow(awaiting.order.id)).paymentStatus).toBe('PAID')
   expect(await db().select().from(orderPayments).where(eq(orderPayments.orderId, awaiting.order.id))).toHaveLength(1)
 

@@ -55,7 +55,7 @@ useVisiblePolling(refresh, { intervalMs: 4000, enabled: () => !notFound.value &&
 
 <template>
   <main class="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-5 px-4 pb-10 pt-[calc(1.25rem+env(safe-area-inset-top))]">
-    <div v-if="loading" class="flex flex-col gap-4" aria-busy="true" aria-label="Đang tải đơn hàng">
+    <div v-if="loading" class="flex flex-col gap-4" role="status" aria-busy="true" aria-label="Đang tải đơn hàng">
       <div class="h-24 w-full animate-pulse rounded-md bg-(--zeno-surface-inset)" />
       <div class="h-48 w-full animate-pulse rounded-md bg-(--zeno-surface-inset)" />
       <div class="h-32 w-full animate-pulse rounded-md bg-(--zeno-surface-inset)" />

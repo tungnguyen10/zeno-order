@@ -121,3 +121,39 @@ SDK forwarder, provider denials, and stale refresh during a denied last-mode
 change. Real browser success must still be established by CI on this patch.
 Local Playwright installation failed because the browser CDN returned an invalid
 ZIP; no local Chromium/WebKit pass is claimed.
+
+## Run 20 follow-up
+
+Run 42331928510 on f66a5e5 passed every non-browser job. The real browser
+production journeys reached 169/171 passes; Safari onboarding/session tests,
+fulfillment rollback, and the product dialog journey no longer failed.
+Both remaining production failures were the reconciliation success locator:
+it matched the visible toast title and its hidden live-region announcement.
+Use an exact text match while retaining the payment-status and duplicate-payment
+assertions that follow it.
+
+Hardening reached 7 passes, 12 failures and 2 expected Lighthouse project skips.
+Tracking's loading div was genuinely missing a role permitting its aria-label;
+add role=status and a Nuxt regression for the named loading state/main landmark.
+
+The earlier attribution of the single script-src event to Axe was incomplete:
+separating Axe did not fix it. The observed page still called Playwright's
+main-world waitForFunction before auditing, then evaluate to read the array.
+The pinned Playwright UtilityScript uses global eval for evaluations, and
+waitForFunction also evaluates its expression in the main world. Remove those
+operations from CSP-observed documents. These ssr:false routes already expose
+main only after client rendering; use DOM locator assertions instead.
+
+Record complete CSP details (directive, blockedURI, source and line) in DOM
+markers via the native violation callback, and read them through locators.
+Native animation callbacks record viewport overflow without main-world
+Playwright evaluations. No events are filtered, no observers are suspended,
+and the policy and zero-violation assertion remain enforced. Add a browser
+negative control that loads an intentionally forbidden script and requires the
+observer to catch exactly that violation. Axe still runs with the original CSP
+in a separate document. Any real remaining application violation must still
+fail and now leaves its source details in the trace.
+
+Focused validation: loading-state Nuxt regression, lint, Nuxt typecheck and
+hardening typecheck. Full browser validation remains gated on the next CI run;
+passing ordinary unit/component tests alone does not establish CSP success.
