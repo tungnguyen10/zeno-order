@@ -5,6 +5,7 @@ export default defineConfig({
   ...base,
   workers: 1,
   retries: 0,
+  reporter: [['list'], ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report', open: 'never' }]],
   use: { ...base.use, baseURL: 'http://localhost:3100' },
   webServer: {
     command: 'node .output/server/index.mjs', url: 'http://127.0.0.1:3100/api/health', reuseExistingServer: false, timeout: 120_000,

@@ -8,7 +8,7 @@ export default defineConfig({
   tsconfig: 'tests/e2e/tsconfig.json',
   workers: 1, fullyParallel: false, timeout: 60_000,
   expect: { timeout: 15_000 }, retries: 0,
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
+  reporter: [['list'], ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report', open: 'never' }]],
   use: { baseURL: 'http://localhost:3100', locale: 'vi-VN', timezoneId: 'Asia/Ho_Chi_Minh', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
     { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },

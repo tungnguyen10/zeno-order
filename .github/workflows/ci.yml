@@ -120,18 +120,24 @@ jobs:
         if: matrix.slot == 'integration-1'
         run: npx vitest run --project integration tests/integration/match-transaction.test.ts -t 'a burst across several orders'
       - if: matrix.slot == 'hardening' || matrix.slot == 'browser'
+        id: hardeningbuild
         run: npm run build:hardening
       - if: matrix.slot != 'browser'
         run: npx vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}
       - if: matrix.slot == 'browser'
+        id: browsers
         run: npx playwright install --with-deps chromium webkit
       - if: matrix.slot == 'browser'
-        run: npm run test:e2e:hardening
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/hardening
+        run: npm run test:e2e:hardening -- --output=test-results/hardening
       - name: Production browser journeys on three projects
-        if: matrix.slot == 'browser'
+        # Run both browser gates even if the first suite fails; neither failure is ignored.
+        if: ${{ !cancelled() && matrix.slot == 'browser' && steps.testauth.outcome == 'success' && steps.hardeningbuild.outcome == 'success' && steps.browsers.outcome == 'success' }}
         env:
           INVITE_REQUIRE_VERIFIED_EMAIL: 'false'
-        run: npx playwright test --config playwright.production.config.ts
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/production
+        run: npx playwright test --config playwright.production.config.ts --output=test-results/production
       - name: Clean only this run's synthetic test Auth users
         if: always() && matrix.slot == 'browser' && steps.testauth.outcome == 'success'
         env:
