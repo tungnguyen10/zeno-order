@@ -1,3 +1,5 @@
+import { pruneRateLimits } from '../server/services/ops/prune-rate-limits'
+import { withJobHeartbeat } from '../server/services/ops/job-heartbeat'
 import { getDb } from '../server/db/client'
 import { expirePaymentAttempts } from '../server/services/payments/expire-payment-attempts'
 import { withPaymentJobLease } from '../server/services/payments/job-lease'
@@ -17,14 +19,21 @@ export async function handlePaymentJob(request: Request): Promise<Response> {
     const payload: unknown = await request.json()
     if (!payload || typeof payload !== 'object' || !('data' in payload) || !payload.data || typeof payload.data !== 'object' || !('scheduled_at' in payload.data) || typeof payload.data.scheduled_at !== 'string' || !Number.isFinite(Date.parse(payload.data.scheduled_at))) return Response.json({ error: 'Invalid trigger' }, { status: 400 })
     const db = getDb()
-    const result = path === '/expire'
-      ? await withPaymentJobLease(db, 'expire', () => expirePaymentAttempts(db, new Date()))
-      : await reconcileSepay(db, {
+    const job = path === '/expire' ? 'expire' : 'reconcile'
+    const result = await withPaymentJobLease(db, `scheduled:${job}`, () => withJobHeartbeat(db, job, async () => {
+      if (job === 'expire') {
+        const result = await expirePaymentAttempts(db, new Date())
+        await pruneRateLimits(db)
+        return result
+      }
+      const summary = await reconcileSepay(db, {
         createClient: (token, environment) => createSepayHttpClient(token, { baseUrl: sepayApiBaseUrl(environment) }),
         now: () => new Date(), sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
       })
-    // Failed jobs return a failure so the trigger can retry. Successful imports remain idempotent.
-    if (result && 'integrations' in result && result.integrations.some(i => !i.ok)) return Response.json({ error: 'Reconciliation incomplete' }, { status: 503 })
+      // A partial import must not produce a healthy heartbeat or a successful trigger response.
+      if (summary.integrations.some(i => !i.ok)) throw new Error('RECONCILE_INCOMPLETE')
+      return summary
+    }))
     return Response.json({ ok: true, skipped: result === null })
   }
   catch (err) {

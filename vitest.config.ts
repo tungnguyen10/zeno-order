@@ -44,6 +44,14 @@ export default defineConfig({
           hookTimeout: 300_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'hardening', environment: 'node', include: ['tests/hardening/**/*.test.ts'],
+          globalSetup: ['tests/hardening/global-setup.ts'], setupFiles: ['tests/setup/integration.ts'],
+          fileParallelism: false, testTimeout: 30_000, hookTimeout: 120_000,
+        },
+      },
       await defineVitestProject({
         test: {
           name: 'nuxt',

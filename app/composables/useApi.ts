@@ -1,9 +1,12 @@
+import type { NitroFetchOptions } from 'nitropack'
+
+// API responses are explicitly typed by callers; avoid recursive Nitro route inference for dynamic IDs.
 export function useApi() {
   const nuxtApp = useNuxtApp()
   const { $tokenCache } = nuxtApp
   const router = useRouter()
   const { clearLocalSession } = useAuth()
-  return $fetch.create({
+  const client = $fetch.create({
     async onRequest({ options }) {
       const token = await $tokenCache.get()
       if (!token) return
@@ -19,4 +22,5 @@ export function useApi() {
       await nuxtApp.runWithContext(() => navigateTo({ path: '/login', query: { redirect: current.fullPath } }))
     },
   })
+  return <T = unknown>(request: string, options?: NitroFetchOptions<string>) => client<T, string>(request, options)
 }

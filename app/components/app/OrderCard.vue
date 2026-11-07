@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { paymentTone } from '~/utils/order-view'
+import { formatAge } from '~/utils/time-ago'
 import type { OrderStatus } from '#shared/enums'
 import { formatVnd } from '#shared/money'
 import { FULFILLMENT_LABELS, PAYMENT_STATUS_LABELS, canMarkCashPaid, primaryAction } from '#shared/order-flow'

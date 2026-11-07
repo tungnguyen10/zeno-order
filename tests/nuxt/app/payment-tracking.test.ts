@@ -13,6 +13,11 @@ function order(paymentStatus: PaymentStatus): PublicOrderView {
   return { publicCode: 'ABC123', status: 'AWAITING_PAYMENT', paymentStatus, paymentMethod: 'BANK_QR', fulfillmentType: 'PICKUP', tableLabel: null, deliveryZoneName: null, customerName: null, phoneMasked: null, items: [], subtotalVnd: 20000, deliveryFeeVnd: 0, totalVnd: 20000, createdAt: '2026-11-01T00:00:00Z', store: { name: 'Coffee', slug: 'coffee' }, qr: null }
 }
 describe('tracking payment status', () => {
+  it('exposes loading as a named status inside the main landmark', async () => {
+    await renderSuspended(OrderTracking)
+    expect(screen.getByRole('main')).toBeTruthy()
+    expect(screen.getByRole('status', { name: 'Đang tải đơn hàng' }).getAttribute('aria-busy')).toBe('true')
+  })
   it.each(['REVIEW_REQUIRED', 'REFUND_DUE', 'REFUNDED'] as const)('does not offer another payment for %s', async (status) => {
     await renderSuspended(OrderTracking)
     currentOrder = order(status)

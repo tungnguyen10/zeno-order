@@ -43,6 +43,13 @@
       "when": 1793944357182,
       "tag": "0005_payment_webhook",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793976762590,
+      "tag": "0006_hardening_ops",
+      "breakpoints": true
     }
   ]
 }

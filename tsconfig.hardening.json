@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "strict": true,
+    "skipLibCheck": true, "noEmit": true, "esModuleInterop": true, "allowJs": true,
+    "types": ["node"], "baseUrl": ".", "paths": { "#shared/*": ["./shared/*"] }, "ignoreDeprecations": "6.0"
+  },
+  "include": ["tests/hardening/**/*.ts", "tests/support/production-server.ts", "tests/support/shared-auth.ts", "tests/support/route-inventory.ts", "tests/e2e-hardening/**/*.ts", "tests/integration/ops-status.test.ts", "scripts/seed-pilot.ts", "scripts/restore-drill.ts", "scripts/reset-ci-schema.ts", "scripts/inspect-ci-auth.ts", "scripts/build-hardening.ts", "playwright.hardening.config.ts", "playwright.production.config.ts"]
+}

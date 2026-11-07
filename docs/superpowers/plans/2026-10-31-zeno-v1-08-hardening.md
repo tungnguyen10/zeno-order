@@ -1,3 +1,7 @@
+> **2026-11-06 implementation override (after merged PR6 #4):** The code samples below are the original proposal, not executable deployment instructions. The authoritative PR7 mapping and validation state are in `docs/superpowers/specs/2026-11-06-pr7-hardening-implementation.md` and `docs/operations.md`.
+>
+> PR6 uses **Neon Functions scheduled POST triggers**, not Vercel Cron, `vercel.json`, `assertCronRequest`, `CRON_SECRET` or Nuxt cron routes. PR7 uses separate `OPS_STATUS_SECRET`, actual `received_at`/`PENDING`/`REVIEW_REQUIRED` columns/statuses, per-integration health and fenced job heartbeats. Endpoint attestation is required before operational seed/reset/drill; an env branch label is not enough. Key rotation must preserve/re-encrypt all existing ciphertext and guest tokens before replacing the key. No live bank/pilot/production restore proof follows from a merge. No attribution trailer is required in this workspace.
+
 # ZENO Mini Order V1 — PR7 Hardening: chất lượng, bảo mật, vận hành, pilot & go-live Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

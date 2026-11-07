@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { customerStatusLabel, customerStatusTone, customerPaymentLabel, fulfillmentSummary } from '~/utils/order-labels'
 import { isTerminalStatus } from '#shared/enums'
 import { formatVnd } from '#shared/money'
 import type { PublicOrderView } from '#shared/types/order'
@@ -53,8 +54,8 @@ useVisiblePolling(refresh, { intervalMs: 4000, enabled: () => !notFound.value &&
 </script>
 
 <template>
-  <div class="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-5 px-4 pb-10 pt-[calc(1.25rem+env(safe-area-inset-top))]">
-    <div v-if="loading" class="flex flex-col gap-4" aria-busy="true" aria-label="Đang tải đơn hàng">
+  <main class="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-5 px-4 pb-10 pt-[calc(1.25rem+env(safe-area-inset-top))]">
+    <div v-if="loading" class="flex flex-col gap-4" role="status" aria-busy="true" aria-label="Đang tải đơn hàng">
       <div class="h-24 w-full animate-pulse rounded-md bg-(--zeno-surface-inset)" />
       <div class="h-48 w-full animate-pulse rounded-md bg-(--zeno-surface-inset)" />
       <div class="h-32 w-full animate-pulse rounded-md bg-(--zeno-surface-inset)" />
@@ -203,5 +204,5 @@ useVisiblePolling(refresh, { intervalMs: 4000, enabled: () => !notFound.value &&
         Đặt thêm món
       </ZButton>
     </template>
-  </div>
+  </main>
 </template>

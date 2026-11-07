@@ -20,7 +20,7 @@ async function signUpAndOnboard(page: Page, testInfo: TestInfo) {
   await page.setViewportSize({ width: 360, height: 740 })
   await page.goto('/signup')
   await page.getByLabel('Tên của bạn').fill('Chủ Quán Thanh Toán')
-  await page.getByLabel('Email').fill(`e2e+${stamp}@example.com`)
+  await page.getByLabel('Email').fill(`e2e+ci${process.env.GITHUB_RUN_ID ?? 'local'}-${stamp}@example.com`)
   await page.getByLabel('Mật khẩu', { exact: true }).fill(PASSWORD)
   await page.getByRole('button', { name: 'Tạo tài khoản' }).click()
   await expect(page).toHaveURL(/\/onboarding$/)
@@ -88,7 +88,7 @@ test('owner resolves unmatched money and a refund from the reconciliation screen
   await expect(assign).toBeVisible()
   expect((await assign.boundingBox())!.height).toBeGreaterThanOrEqual(44)
   await assign.dblclick()
-  await expect(page.getByText('Đã gán vào đơn')).toBeVisible()
+  await expect(page.getByText('Đã gán vào đơn', { exact: true })).toBeVisible()
   await expect.poll(async () => (await orderRow(awaiting.order.id)).paymentStatus).toBe('PAID')
   expect(await db().select().from(orderPayments).where(eq(orderPayments.orderId, awaiting.order.id))).toHaveLength(1)
 

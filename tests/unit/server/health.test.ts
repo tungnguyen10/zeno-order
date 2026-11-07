@@ -18,7 +18,9 @@ describe('health handler', () => {
     req.url = '/api/health'
     const res = new ServerResponse(req)
     const event = createEvent(req, res)
-    event.context.requestId = 'test-request'
+    req.headers['x-request-id'] = 'guest-capability-private-canary-1234567890123'
+    const { default: requestId } = await import('../../../server/middleware/request-id')
+    await requestId(event)
     const body = await handler(event)
     expect(res.statusCode).toBe(503)
     expect(body).toEqual({ code: 'SERVICE_UNAVAILABLE', message: 'Cơ sở dữ liệu không khả dụng' })
@@ -27,9 +29,10 @@ describe('health handler', () => {
     expect(errorSpy).toHaveBeenCalledTimes(1)
     const line = errorSpy.mock.calls[0]![0] as string
     expect(line).not.toContain('user:secret')
+    expect(line).not.toContain(req.headers['x-request-id'])
     expect(JSON.parse(line)).toMatchObject({
       msg: 'api.unhandled',
-      requestId: 'test-request',
+      requestId: event.context.requestId,
       err: { name: 'AppError' },
       cause: { message: 'connect failed postgres://[REDACTED]' },
     })

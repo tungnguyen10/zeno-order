@@ -10,6 +10,10 @@ import { resetDb } from '../support/db'
 import { createTenant } from '../support/fixtures'
 import { findForbiddenKeys } from '../support/json'
 
+// This suite simulates an ingress that overwrites XFF to test distinct client IPs.
+// The production hardening suite separately proves untrusted XFF cannot bypass limits.
+process.env.TRUST_FORWARDED_FOR = '1'
+
 await setup({
   rootDir: fileURLToPath(new URL('../..', import.meta.url)),
   server: true,

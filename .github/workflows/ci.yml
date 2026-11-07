@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -22,9 +22,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run audit:runtime
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run typecheck:functions
+      - run: npm run typecheck:hardening
       - run: npm run test:unit
       - run: npm run test:nuxt
       - run: npm run build
@@ -33,9 +35,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: checks
     strategy:
+      # Collect independent DB/API results even when a provider browser gate fails.
       fail-fast: false
+      max-parallel: 2
       matrix:
         include:
+          - slot: hardening
+            project: hardening
+            shard: 1/1
+          - slot: browser
+            project: browser
+            shard: 1/1
           - slot: integration-1
             project: integration
             shard: 1/2
@@ -47,7 +57,9 @@ jobs:
             shard: 1/1
     env:
       ZENO_TEST_DB: '1'
-      APP_BASE_URL: http://localhost:3100
+      APP_BASE_URL: ${{ matrix.slot == 'browser' && 'https://localhost:3100' || 'http://localhost:3100' }}
+      CI_BRANCH: ci-${{ github.run_id }}-${{ matrix.slot }}
+      CI_TEST_AUTH_BRANCH: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,6 +67,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Create local TLS certificate for Secure browser cookies
+        if: matrix.slot == 'browser'
+        run: |
+          mkdir -p .cache/ci-tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' -keyout .cache/ci-tls/key.pem -out .cache/ci-tls/cert.pem 2>/dev/null
+          echo "NODE_EXTRA_CA_CERTS=$PWD/.cache/ci-tls/cert.pem" >> "$GITHUB_ENV"
+          echo 'CI_BROWSER_TLS=1' >> "$GITHUB_ENV"
       - name: Generate APP_ENCRYPTION_KEY
         run: |
           key="$(openssl rand -base64 32)"
@@ -65,9 +84,11 @@ jobs:
         # Safety net if the delete step never runs (cancelled/crashed job).
         run: echo "at=$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: neondatabase/create-branch-action@v6
+        id: neonbranch
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           parent_branch: production
+          branch_type: schema-only
           branch_name: ci-${{ github.run_id }}-${{ matrix.slot }}
           expires_at: ${{ steps.expiry.outputs.at }}
           api_key: ${{ secrets.NEON_API_KEY }}
@@ -76,57 +97,69 @@ jobs:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
           CI_BRANCH: ci-${{ github.run_id }}-${{ matrix.slot }}
-        run: |
-          set -euo pipefail
-          trap 'rm -f .env.ci' EXIT
-          npx -y neon@8.4.1 env pull --project-id "$NEON_PROJECT_ID" --branch "$CI_BRANCH" --file .env.ci --service postgres --service auth --service object-storage
-          node <<'JS'
-          const fs = require('node:fs')
-          const { parseEnv } = require('node:util')
-          const { randomUUID } = require('node:crypto')
-
-          // Values that are safe to show in logs; everything else is masked.
-          const UNMASKED = new Set(['NEON_BRANCH'])
-          const env = parseEnv(fs.readFileSync('.env.ci', 'utf8'))
-
-          if (env.NEON_BRANCH !== process.env.CI_BRANCH) {
-            console.error(`NEON_BRANCH mismatch: expected ${process.env.CI_BRANCH}`)
-            process.exit(1)
-          }
-
-          const mask = (value) => {
-            for (const line of value.split(/\r?\n/)) {
-              if (line.trim()) console.log(`::add-mask::${line}`)
-            }
-          }
-
-          let out = ''
-          for (const [key, value] of Object.entries(env)) {
-            if (!UNMASKED.has(key)) mask(value)
-            if (/^postgres(ql)?:\/\//i.test(value)) {
-              try {
-                const { password } = new URL(value)
-                if (password) {
-                  mask(password)
-                  mask(decodeURIComponent(password))
-                }
-              }
-              catch {
-                // Not a parseable URL; the whole value is already masked.
-              }
-            }
-            const delimiter = `ZENO_EOF_${randomUUID()}`
-            out += `${key}<<${delimiter}\n${value}\n${delimiter}\n`
-          }
-          fs.appendFileSync(process.env.GITHUB_ENV, out)
-          JS
+        run: node scripts/export-ci-env.mjs postgres
+      - name: Rebuild app schemas on the attested empty CI branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          CI_BRANCH: ci-${{ github.run_id }}-${{ matrix.slot }}
+        run: npx tsx scripts/reset-ci-schema.ts
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit migrate
       - run: test ! -f drizzle/meta/_journal.json || npx drizzle-kit check
+      - name: Provision isolated storage after app schema rebuild
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: node scripts/provision-ci-services.mjs
+      - name: Export provisioned branch services
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: node scripts/export-ci-env.mjs postgres object-storage
+      - name: Bind designated non-production test Auth for browser journeys
+        id: testauth
+        if: matrix.slot == 'browser'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: node scripts/shared-ci-auth.mjs bind
       - name: Payment burst smoke regression
         if: matrix.slot == 'integration-1'
         run: npx vitest run --project integration tests/integration/match-transaction.test.ts -t 'a burst across several orders'
-      - run: npx vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}
-      - if: always()
+      - if: matrix.slot == 'hardening' || matrix.slot == 'browser'
+        id: hardeningbuild
+        run: npm run build:hardening
+      - if: matrix.slot != 'browser'
+        run: npx vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}
+      - if: matrix.slot == 'browser'
+        id: browsers
+        run: npx playwright install --with-deps chromium webkit
+      - if: matrix.slot == 'browser'
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/hardening
+        run: npm run test:e2e:hardening -- --output=test-results/hardening
+      - name: Production browser journeys on three projects
+        # Run both browser gates even if the first suite fails; neither failure is ignored.
+        if: ${{ !cancelled() && matrix.slot == 'browser' && steps.testauth.outcome == 'success' && steps.hardeningbuild.outcome == 'success' && steps.browsers.outcome == 'success' }}
+        env:
+          INVITE_REQUIRE_VERIFIED_EMAIL: 'false'
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/production
+        run: npx playwright test --config playwright.production.config.ts --output=test-results/production
+      - name: Clean only this run's synthetic test Auth users
+        if: always() && matrix.slot == 'browser' && steps.testauth.outcome == 'success'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: node scripts/shared-ci-auth.mjs cleanup
+      - if: always() && (matrix.slot == 'hardening' || matrix.slot == 'browser')
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr7-${{ matrix.slot }}-reports
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+      - if: always() && steps.neonbranch.outcome == 'success'
         uses: neondatabase/delete-branch-action@v3
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}

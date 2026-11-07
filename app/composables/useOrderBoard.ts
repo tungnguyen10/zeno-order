@@ -183,7 +183,7 @@ export function useOrderBoard(storeId: Ref<string | null>) {
         orders.value = applyStatus(orders.value, order.id, nextStatus, tab.value)
         counts.value = shiftCounts(counts.value, order.status, nextStatus)
       },
-      () => api(`${base()}/${order.id}/status`, { method: 'PATCH', body: { expectedStatus: order.status, nextStatus } }),
+      () => api<unknown>(`${base()}/${order.id}/status`, { method: 'PATCH', body: { expectedStatus: order.status, nextStatus } }),
     )
   }
 
@@ -193,7 +193,7 @@ export function useOrderBoard(storeId: Ref<string | null>) {
       () => {
         orders.value = orders.value.map(item => (item.id === order.id ? { ...item, paymentStatus: 'PAID' as const } : item))
       },
-      () => api(`${base()}/${order.id}/mark-paid`, { method: 'POST', body: { expectedPaymentStatus: order.paymentStatus, method: 'CASH' } }),
+      () => api<unknown>(`${base()}/${order.id}/mark-paid`, { method: 'POST', body: { expectedPaymentStatus: order.paymentStatus, method: 'CASH' } }),
     )
   }
 

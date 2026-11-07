@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs'
+import { assertTestDatabase, loadEnvFileOverride } from './tests/support/test-env'
 import { defineConfig, devices } from '@playwright/test'
 
-if (existsSync('.env.test')) process.loadEnvFile('.env.test')
+loadEnvFileOverride('.env.test')
+assertTestDatabase()
 
 const PORT = 3100
 
@@ -19,6 +20,7 @@ export default defineConfig({
     timezoneId: 'Asia/Ho_Chi_Minh',
   },
   projects: [
+    { name: 'desktop-chrome', use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },
     { name: 'mobile-safari', use: { ...devices['iPhone 14'] } },
   ],
