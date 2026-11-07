@@ -58,6 +58,6 @@ it('every API route is classified; a newly added route cannot silently bypass re
     const source = readFileSync(route.file, 'utf8')
     expect(source).toContain('defineApiHandler')
     if (route.guard) continue
-    expect(route.path).toMatch(/^\/api\/(?:public\/|webhooks\/sepay\/|internal\/status$|health$|me$|stores$|organizations$|invitations\/)/)
+    expect(route.path).toMatch(/^\/api\/(?:auth\/(?:sign-up\/email|sign-in\/email|sign-out|get-session|token)$|public\/|webhooks\/sepay\/|internal\/status$|health$|me$|stores$|organizations$|invitations\/)/)
   }
 })

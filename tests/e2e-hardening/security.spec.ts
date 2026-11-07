@@ -1,9 +1,23 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import { closeDb } from '../../server/db/client'
-import { createProduct, createTenant } from '../support/fixtures'
+import { createOptionGroup, createProduct, createTenant } from '../support/fixtures'
 import { assertTestDatabase } from '../support/test-env'
 import { openStore } from '../support/checkout-fixtures'
+
+async function analyzeAccessibility(page: import('@playwright/test').Page) {
+  // Keep the app page's CSP listener active. Axe's injected feature probes must
+  // run in a separate document so they cannot pollute the app's CSP evidence.
+  const auditPage = await page.context().newPage()
+  try {
+    const viewport = page.viewportSize()
+    if (viewport) await auditPage.setViewportSize(viewport)
+    await auditPage.goto(page.url())
+    await auditPage.waitForFunction(() => !!(document.querySelector('#__nuxt') as HTMLElement & { __vue_app__?: unknown })?.__vue_app__)
+    return await new AxeBuilder({ page: auditPage }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+  }
+  finally { await auditPage.close() }
+}
 
 assertTestDatabase()
 test.afterAll(closeDb)
@@ -21,7 +35,7 @@ for (const path of ['/login', '/signup', '/o/unknown-order-capability']) {
     // Wait for hydration and async error states, not just static HTML.
     await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as HTMLElement & { __vue_app__?: unknown })?.__vue_app__)
     if (path.startsWith('/o/')) await expect(page.getByRole('heading', { name: 'Không tìm thấy đơn hàng' })).toBeVisible()
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+    const results = await analyzeAccessibility(page)
     expect(results.violations.filter(item => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual([])
     expect(await page.evaluate(() => (window as typeof window & { cspViolations: string[] }).cspViolations)).toEqual([])
     expect(violations).toEqual([])
@@ -31,7 +45,8 @@ for (const path of ['/login', '/signup', '/o/unknown-order-capability']) {
 test('menu renders hostile text safely and keeps drawer focus/keyboard behavior', async ({ page }) => {
   const t = await createTenant('browser-hardening')
   const name = '<img src=x onerror="window.XSS=1">'
-  await createProduct(t.store, { name })
+  const product = await createProduct(t.store, { name })
+  await createOptionGroup(t.store, product)
   await openStore(t.store.id)
   await page.addInitScript(() => { (window as typeof window & { XSS: number }).XSS = 0 })
   await page.goto(`/s/${t.store.slug}`)
@@ -70,7 +85,7 @@ test('authenticated owner board keeps CSP, a11y and touch controls working', asy
   await signUpAndOnboard(page, info, 'Quán Hardening')
   if (info.project.name === 'desktop-chrome') await page.setViewportSize({ width: 1365, height: 900 })
   await expect(page.getByTestId('active-store-name')).toHaveText('Quán Hardening')
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+  const results = await analyzeAccessibility(page)
   expect(results.violations.filter(item => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual([])
   expect(await page.evaluate(() => (window as typeof window & { cspViolations: string[] }).cspViolations)).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)

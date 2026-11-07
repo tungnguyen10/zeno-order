@@ -57,7 +57,7 @@ jobs:
             shard: 1/1
     env:
       ZENO_TEST_DB: '1'
-      APP_BASE_URL: http://localhost:3100
+      APP_BASE_URL: ${{ matrix.slot == 'browser' && 'https://localhost:3100' || 'http://localhost:3100' }}
       CI_BRANCH: ci-${{ github.run_id }}-${{ matrix.slot }}
       CI_TEST_AUTH_BRANCH: test
     steps:
@@ -67,6 +67,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Create local TLS certificate for Secure browser cookies
+        if: matrix.slot == 'browser'
+        run: |
+          mkdir -p .cache/ci-tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' -keyout .cache/ci-tls/key.pem -out .cache/ci-tls/cert.pem 2>/dev/null
+          echo "NODE_EXTRA_CA_CERTS=$PWD/.cache/ci-tls/cert.pem" >> "$GITHUB_ENV"
+          echo 'CI_BROWSER_TLS=1' >> "$GITHUB_ENV"
       - name: Generate APP_ENCRYPTION_KEY
         run: |
           key="$(openssl rand -base64 32)"

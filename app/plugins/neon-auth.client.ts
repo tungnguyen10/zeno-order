@@ -8,7 +8,7 @@ export default defineNuxtPlugin(() => {
   // Loaded on first use so pages that never touch auth (landing) don't ship the auth client up front.
   const getAuthClient = memoizeAsync<NeonAuthClient>(async () => {
     const { createNeonAuthClient } = await import('~/lib/neon-auth-client')
-    return createNeonAuthClient(config.public.neonAuthUrl)
+    return createNeonAuthClient(`${window.location.origin}/api/auth`)
   })
   const tokenCache = createTokenCache({
     token: createSessionTokenSource({

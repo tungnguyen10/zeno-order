@@ -19,6 +19,8 @@ export async function signUpAndOnboard(page: Page, testInfo: TestInfo, storeName
   await page.getByLabel('Mật khẩu', { exact: true }).fill(E2E_PASSWORD)
   await page.getByRole('button', { name: 'Tạo tài khoản' }).click()
   await expect(page).toHaveURL(/\/onboarding$/)
+  // A redirect back to login must fail here, not consume the entire journey timeout.
+  await expect(page.getByLabel('Tên doanh nghiệp')).toBeVisible()
   await page.getByLabel('Tên doanh nghiệp').fill(`${storeName} Group`)
   await page.getByLabel('Tên cửa hàng').fill(storeName)
   await page.getByLabel('Đường dẫn cửa hàng').fill(slug)

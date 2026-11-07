@@ -17,11 +17,9 @@ const modes = reactive<Record<ModeKey, boolean>>({
   pickupEnabled: props.store.pickupEnabled,
   deliveryEnabled: props.store.deliveryEnabled,
 })
-watch(() => props.store, (store) => {
-  modes.dineInEnabled = store.dineInEnabled
-  modes.pickupEnabled = store.pickupEnabled
-  modes.deliveryEnabled = store.deliveryEnabled
-})
+// The parent keys this component by store.id. Background refreshes for this
+// store can be older than a pending toggle; they must not overwrite its draft.
+const savingMode = ref(false)
 
 const modeRows: { key: ModeKey, label: string, description: string }[] = [
   { key: 'dineInEnabled', label: 'Tại bàn', description: 'Khách quét QR trên bàn để gọi món.' },
@@ -64,6 +62,8 @@ async function loadZones() {
 loadZones()
 
 async function setMode(key: ModeKey, value: boolean) {
+  if (savingMode.value) return
+  savingMode.value = true
   const previous = modes[key]
   modes[key] = value
   try {
@@ -74,6 +74,7 @@ async function setMode(key: ModeKey, value: boolean) {
     modes[key] = previous
     toast.add({ color: 'error', title: extractApiError(err).message })
   }
+  finally { savingMode.value = false }
 }
 
 async function addZone() {
@@ -144,6 +145,7 @@ async function setZoneActive(zone: DeliveryZoneDTO, active: boolean) {
           :model-value="modes[row.key]"
           :label="row.label"
           :description="row.description"
+          :disabled="savingMode"
           @update:model-value="setMode(row.key, $event)"
         />
       </div>

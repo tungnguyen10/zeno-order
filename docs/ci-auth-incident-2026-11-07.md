@@ -72,3 +72,52 @@ run 17 for testing the new commit. A skipped required journey is not success.
 Keep PR5 targeting develop; obtain explicit user approval before merging.
 No main update, production deployment, database privilege expansion, or
 payment schedule activation is part of this patch.
+
+## Run 19 browser follow-up
+
+Run 42325441612 on 52f2cb1 passed checks, integration (both shards), API and
+hardening. Storage provisioning and binding existing test Auth succeeded.
+The browser job failed in both suites, not in Auth provisioning:
+
+- Hardening: 15 failed, 4 passed, 2 explicitly non-Chromium Lighthouse skips.
+- Production journeys: 153 passed, 18 failed; 45.5 minutes with one worker.
+- Shared test Auth cleanup and ephemeral branch deletion succeeded.
+
+Trace evidence shows WebKit sign-up returned 200 with a Secure, SameSite=None
+provider-domain cookie; the following get-session request sent no cookies and
+returned null. The app then redirected from onboarding to login. Long journey
+timeouts repeatedly waited for an onboarding form that was no longer present.
+This is a real cross-site session persistence failure, not permission provisioning.
+
+The follow-up routes the five currently used email/session/token operations
+through same-origin /api/auth endpoints. The upstream is server-configured;
+mutations require the exact configured app Origin; unrelated cookies and
+Authorization/forwarded-host headers are not forwarded. Provider session cookies
+are host-only, HttpOnly, Secure, SameSite=Lax and unpartitioned; expiry/deletion
+are retained. No local session or alternate JWT issuer is created. Existing
+application APIs still verify provider JWTs as before. OAuth is not exposed by
+these endpoints. Local browser CI runs HTTPS with a generated localhost-only
+certificate; only its certificate trust is relaxed, never cookie privacy or CSP.
+
+Other fixes from trace/source comparison:
+
+- Tracking page rendered its correct not-found state but lacked a main landmark;
+  the page now provides main for all states.
+- The hostile-text product fixture had no options, so the intended behavior was
+  direct add-to-cart. Add an option group to exercise the actual product dialog.
+- Axe injects dynamic-code feature probes. Run page-level accessibility scans in
+  a separate document while keeping the original page's CSP observer active;
+  no CSP directive or violation assertion is relaxed. Dialog scans remain on the
+  live dialog, and the original application page continues to collect errors.
+- Fulfillment toggles could overlap parent refreshes and roll back to stale
+  values. Serialize mode writes and retain the component's current mode state
+  across older same-store prop refreshes. The component is keyed by store ID.
+- Assert onboarding form visibility before fill, so session regressions fail at
+  the normal assertion timeout instead of repeatedly exhausting whole journeys.
+
+Regression coverage includes provider-cookie rebinding/deletion, rejected
+mutation origins/methods/large bodies, filtered upstream headers with the real
+SDK forwarder, provider denials, and stale refresh during a denied last-mode
+change. Real browser success must still be established by CI on this patch.
+Local Playwright installation failed because the browser CDN returned an invalid
+ZIP; no local Chromium/WebKit pass is claimed.

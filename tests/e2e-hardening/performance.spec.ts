@@ -5,6 +5,7 @@ import lighthouse from 'lighthouse'
 import { createProduct, createTenant } from '../support/fixtures'
 import { closeDb } from '../../server/db/client'
 import { assertTestDatabase } from '../support/test-env'
+import { browserBaseUrl, browserTls } from '../support/browser-production'
 
 assertTestDatabase()
 test.afterAll(closeDb)
@@ -12,9 +13,9 @@ test('public menu Lighthouse mobile budget on production build', async ({ playwr
   test.skip(info.project.name !== 'mobile-chrome', 'Lighthouse uses Chromium mobile emulation once')
   const tenant = await createTenant('lighthouse')
   await createProduct(tenant.store, { name: 'Trà sữa thử nghiệm' })
-  const browser = await playwright.chromium.launch({ args: ['--remote-debugging-port=9222'] })
+  const browser = await playwright.chromium.launch({ args: ['--remote-debugging-port=9222', ...(browserTls ? ['--ignore-certificate-errors'] : [])] })
   try {
-    const result = await lighthouse(`http://localhost:3100/s/${tenant.store.slug}`, { port: 9222, output: ['html', 'json'], onlyCategories: ['performance', 'accessibility', 'best-practices'], formFactor: 'mobile', throttlingMethod: 'simulate' })
+    const result = await lighthouse(`${browserBaseUrl}/s/${tenant.store.slug}`, { port: 9222, output: ['html', 'json'], onlyCategories: ['performance', 'accessibility', 'best-practices'], formFactor: 'mobile', throttlingMethod: 'simulate' })
     if (!result) throw new Error('Lighthouse did not produce a report')
     mkdirSync('test-results', { recursive: true })
     writeFileSync('test-results/lighthouse.html', result.report[0]!)

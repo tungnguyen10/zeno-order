@@ -37,6 +37,25 @@ describe('SettingsFulfillmentTab', () => {
     expect(emitted().changed).toBeUndefined()
   })
 
+  it('keeps newer mode edits when an older parent refresh arrives, then restores a denied last mode', async () => {
+    let settle!: () => void
+    api.mockImplementation(async (url: string) => {
+      if (url.endsWith('/delivery-zones')) return { zones: [] }
+      await new Promise<void>(resolve => { settle = resolve })
+      throw { data: { code: 'VALIDATION_FAILED', message: 'Cần bật ít nhất một hình thức nhận món' } }
+    })
+    const initial = store({ dineInEnabled: false, pickupEnabled: false, deliveryEnabled: true })
+    const { rerender } = await renderSuspended(SettingsFulfillmentTab, { props: { store: initial } })
+    const delivery = screen.getByRole('switch', { name: 'Giao hàng' })
+    await fireEvent.click(delivery)
+    await waitFor(() => expect(delivery.getAttribute('aria-checked')).toBe('false'))
+    expect(delivery.hasAttribute('disabled')).toBe(true)
+    await rerender({ store: store({ deliveryEnabled: false }) })
+    settle()
+    await waitFor(() => expect(delivery.getAttribute('aria-checked')).toBe('true'))
+    await waitFor(() => expect(delivery.hasAttribute('disabled')).toBe(false))
+  })
+
   it('warns when delivery is on without an active zone', async () => {
     await renderSuspended(SettingsFulfillmentTab, { props: { store: store({ deliveryEnabled: true }) } })
     expect(await screen.findByText(/Chưa có khu vực giao đang bật/)).toBeTruthy()
