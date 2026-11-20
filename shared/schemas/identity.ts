@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { openingHoursSchema } from '../store-hours'
 
 export const RESERVED_SLUGS = [
   'admin', 'api', 'app', 'assets', 'auth', 'help', 'invite', 'login', 'logout', 'o', 'onboarding',
@@ -38,8 +39,16 @@ export const onboardingInputSchema = z.object({
 })
 export type OnboardingInput = z.output<typeof onboardingInputSchema>
 
+// Accepts an ISO timestamp (temporary pause) or null (resume now); stored as a Date.
+const pausedUntilSchema = z.union([
+  z.null(),
+  z.string().datetime({ offset: true }).transform(value => new Date(value)),
+])
+
 export const updateStoreInputSchema = z.object({
   name: nameSchema.optional(),
   isAcceptingOrders: z.boolean().optional(),
+  openingHours: openingHoursSchema.nullable().optional(),
+  pausedUntil: pausedUntilSchema.optional(),
 }).refine(value => Object.values(value).some(v => v !== undefined), 'Không có thay đổi nào')
 export type UpdateStoreInput = z.output<typeof updateStoreInputSchema>

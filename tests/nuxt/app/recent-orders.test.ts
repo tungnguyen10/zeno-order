@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest'
 import { computed, defineComponent, h, ref, nextTick } from 'vue'
 import { useRecentOrders } from '~/composables/useRecentOrders'
 
-const entry = { token: 'token', publicCode: 'CODE', storeSlug: 'first', storeName: 'Store', totalVnd: 1000, createdAt: new Date().toISOString() }
+const entry = { token: 'token', publicCode: 'CODE', storeSlug: 'first', storeName: 'Store', totalVnd: 1000, createdAt: new Date().toISOString(), items: [] }
 
 async function mountRecent() {
   let recent!: ReturnType<typeof useRecentOrders>

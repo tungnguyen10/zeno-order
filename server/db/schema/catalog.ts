@@ -9,6 +9,7 @@ export const categories = pgTable('categories', {
   name: text('name').notNull(),
   position: integer('position').notNull().default(0),
   active: boolean('active').notNull().default(true),
+  imageKey: text('image_key'),
   ...timestamps,
 }, t => [
   unique('categories_store_id_id_uq').on(t.storeId, t.id),

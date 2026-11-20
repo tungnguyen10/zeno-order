@@ -14,7 +14,7 @@ beforeEach(() => api.mockReset())
 
 const store: StoreDetail = {
   id: 's1', orgId: 'o1', name: 'Quán', slug: 'quan', role: 'OWNER', isAcceptingOrders: true,
-  dineInEnabled: true, pickupEnabled: true, deliveryEnabled: false,
+  dineInEnabled: true, pickupEnabled: true, deliveryEnabled: false, openingHours: null, pausedUntil: null,
 }
 
 function deferred<T>() {

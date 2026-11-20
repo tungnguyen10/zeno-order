@@ -6,7 +6,7 @@ useHead({ title: 'Thực đơn' })
 
 const toast = useToast()
 const { activeStore } = useActiveStore()
-const { storeId, categories, products, status, refresh, addProduct, addCategory, patchProduct, replaceProduct } = useMenuAdmin()
+const { storeId, categories, products, status, refresh, addProduct, addCategory, patchProduct, replaceProduct, replaceCategory } = useMenuAdmin()
 const isOwner = computed(() => activeStore.value?.role === 'OWNER')
 const editing = ref<ProductDTO | null>(null)
 const editorOpen = ref(false)
@@ -44,6 +44,7 @@ async function setAvailable(product: ProductDTO, value: boolean) {
     <AppPageHeader title="Thực đơn" description="Thêm món nhanh: gõ tên, gõ giá, bấm Thêm món." />
     <ZAlert v-if="!isOwner" color="info" title="Chỉ chủ cửa hàng mới sửa được thực đơn." />
     <MenuQuickAdd v-if="isOwner" :store-id="storeId" :categories="categories" :add-product="addProduct" :add-category="addCategory" />
+    <MenuCategoryManager v-if="isOwner" :store-id="storeId" :categories="categories" @saved="replaceCategory" />
 
     <div v-if="status === 'pending' && products.length === 0" class="flex flex-col gap-3" aria-busy="true" aria-label="Đang tải thực đơn">
       <USkeleton v-for="i in 3" :key="i" class="h-20 w-full rounded-md" />

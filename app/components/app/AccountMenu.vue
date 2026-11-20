@@ -42,6 +42,7 @@ async function onSignOut() {
               <p class="truncate text-sm text-muted">{{ email }}</p>
             </div>
             <AppColorModeToggle variant="row" />
+            <AppInstallButton />
             <ZButton variant="secondary" block icon="i-lucide-log-out" @click="onSignOut">
               Đăng xuất
             </ZButton>
@@ -59,6 +60,7 @@ async function onSignOut() {
         </div>
       </div>
       <AppColorModeToggle variant="row" />
+      <AppInstallButton />
       <ZButton variant="ghost" block icon="i-lucide-log-out" class="justify-start" @click="onSignOut">
         Đăng xuất
       </ZButton>

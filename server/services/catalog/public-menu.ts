@@ -1,3 +1,4 @@
+import { describeOpenState, evaluateOpen } from '#shared/store-hours'
 import type { PublicMenu } from '#shared/types/catalog'
 import type { DbOrTx } from '../../db/client'
 import { countActiveZones, listCategoryRows } from '../../repositories/catalog'
@@ -19,11 +20,23 @@ export async function getPublicMenu(db: DbOrTx, slug: string): Promise<PublicMen
     findBankQrReceiver(db, scope),
   ])
 
+  const now = new Date()
+  const openState = evaluateOpen(store.openingHours, store.pausedUntil, now)
+
   return {
     bankQrEnabled: receiver !== null,
-    store: { name: store.name, slug: store.slug, isAcceptingOrders: store.isAcceptingOrders, logoUrl: imageUrlFor(store.logoKey) },
+    store: {
+      name: store.name,
+      slug: store.slug,
+      isAcceptingOrders: store.isAcceptingOrders,
+      logoUrl: imageUrlFor(store.logoKey),
+      openNow: openState.open,
+      closedHint: describeOpenState(openState, now),
+      openingHours: store.openingHours ?? null,
+      pausedUntil: store.pausedUntil ? store.pausedUntil.toISOString() : null,
+    },
     modes: buildModes(store, zoneCount),
-    categories: categoryRows.map(row => ({ id: row.id, name: row.name })),
+    categories: categoryRows.map(row => ({ id: row.id, name: row.name, imageUrl: imageUrlFor(row.imageKey) })),
     products: productDTOs.map(toPublicProduct),
   }
 }

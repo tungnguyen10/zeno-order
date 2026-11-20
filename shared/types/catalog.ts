@@ -1,3 +1,5 @@
+import type { OpeningHours } from '../store-hours'
+
 export interface PublicModes {
   dineIn: boolean
   pickup: boolean
@@ -33,12 +35,26 @@ export interface PublicProduct {
 export interface PublicCategory {
   id: string
   name: string
+  imageUrl: string | null
 }
 
 export interface PublicMenu {
   /** Whether the store can currently receive real customer bank transfers. */
   bankQrEnabled?: boolean
-  store: { name: string, slug: string, isAcceptingOrders: boolean, logoUrl: string | null }
+  store: {
+    name: string
+    slug: string
+    isAcceptingOrders: boolean
+    logoUrl: string | null
+    /** Server's snapshot of open/closed at fetch time; the client re-evaluates live from the fields below. */
+    openNow: boolean
+    /** Short Vietnamese hint such as "Mở lúc 07:00 ngày mai"; null when open. */
+    closedHint: string | null
+    /** Weekly schedule (or null) so the client can flip open/closed at the exact boundary without refetching. */
+    openingHours: OpeningHours | null
+    /** ISO timestamp of a temporary pause, or null. */
+    pausedUntil: string | null
+  }
   modes: PublicModes
   categories: PublicCategory[]
   products: PublicProduct[]
@@ -56,6 +72,7 @@ export interface CategoryDTO {
   name: string
   position: number
   active: boolean
+  imageUrl: string | null
 }
 
 export interface OptionValueDTO {

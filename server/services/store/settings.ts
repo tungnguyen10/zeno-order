@@ -19,6 +19,8 @@ function toDetail(row: StoreRow, ctx: StoreContext): StoreDetail {
     dineInEnabled: row.dineInEnabled,
     pickupEnabled: row.pickupEnabled,
     deliveryEnabled: row.deliveryEnabled,
+    openingHours: row.openingHours ?? null,
+    pausedUntil: row.pausedUntil ? row.pausedUntil.toISOString() : null,
   }
 }
 

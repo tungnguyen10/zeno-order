@@ -4,7 +4,7 @@ import MenuQuickAdd from '~/components/menu/QuickAdd.vue'
 import ZSelect from '~/components/z/Select.vue'
 import type { CategoryDTO, ProductDTO } from '#shared/types/catalog'
 
-const category: CategoryDTO = { id: 'c1', name: 'Trà', active: true, position: 0 }
+const category: CategoryDTO = { id: 'c1', name: 'Trà', active: true, position: 0, imageUrl: null }
 const product: ProductDTO = {
   id: 'p1', categoryId: null, name: 'Cà phê', description: null, basePriceVnd: 35000,
   isAvailable: true, active: true, position: 0, imageUrl: null, optionGroups: [],

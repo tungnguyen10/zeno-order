@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { orderTotals, priceLine, validateSelection, type OptionGroupRule } from '#shared/pricing'
+import { evaluateOpen, type OpeningHours } from '#shared/store-hours'
 import type { CheckoutInput } from '#shared/schemas/checkout'
 import type { OrderStatus, PaymentStatus } from '#shared/enums'
 import type { CartStaleDetails, CartStaleLine, CartStaleReason, CreateOrderResponse, OrderItemOptionSnapshot } from '#shared/types/order'
@@ -11,6 +12,7 @@ import { decryptSecret, encryptSecret } from '../../utils/crypto'
 import { AppError } from '../../utils/errors'
 import { generateToken, hashToken } from '../../utils/tokens'
 import { createPaymentAttempt, getActiveQrForOrder, requireBankQrReceiver } from '../payments/attempts'
+import { notifyNewOrder } from '../push/notify'
 import { CHECKOUT_RATE_LIMIT, MAX_PUBLIC_CODE_ATTEMPTS } from './constants'
 import { generatePublicCode } from './public-code'
 import { consumeRateLimit } from './rate-limit'
@@ -74,6 +76,14 @@ export async function createOrder(
     const result = await db.transaction(tx => placeOrder(tx, store, input, args.ip, deps))
     // Expected preflight failures commit their rate charge, without writing any order rows.
     if ('error' in result) throw result.error
+    // Orders that reach the kitchen immediately (COD → NEW) push the store's staff. BANK_QR waits for payment.
+    if (!result.replayed && result.response.status === 'NEW') {
+      await notifyNewOrder(db, { orgId: store.orgId, storeId: store.id }, {
+        publicCode: result.response.publicCode,
+        fulfillmentType: input.fulfillmentType,
+        totalVnd: result.response.totalVnd,
+      })
+    }
     return result
   }
   catch (err) {
@@ -249,8 +259,14 @@ function hashIp(ip: string | null): string {
   return createHash('sha256').update(ip ?? 'unknown').digest('hex').slice(0, 16)
 }
 
-function assertStoreAcceptsOrders(store: PublicStore, input: CheckoutInput): void {
+function assertStoreAcceptsOrders(
+  store: PublicStore & { openingHours: OpeningHours | null, pausedUntil: Date | null },
+  input: CheckoutInput,
+): void {
   if (!store.isAcceptingOrders) throw new AppError('STORE_CLOSED', 'Quán đang tạm nghỉ, chưa nhận đơn')
+  if (!evaluateOpen(store.openingHours, store.pausedUntil, new Date()).open) {
+    throw new AppError('STORE_CLOSED', 'Quán đang đóng cửa, chưa nhận đơn')
+  }
   if (!store[MODE_FLAG[input.fulfillmentType]]) throw new AppError('MODE_DISABLED', 'Quán không nhận đơn theo hình thức này')
 }
 

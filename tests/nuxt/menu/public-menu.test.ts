@@ -14,7 +14,7 @@ describe('public menu loading error', () => {
     const refresh = vi.fn(async () => {
       error.value = null
       menu.value = {
-        store: { name: 'Quán hồi phục', slug: 'retry', isAcceptingOrders: true, logoUrl: null },
+        store: { name: 'Quán hồi phục', slug: 'retry', isAcceptingOrders: true, logoUrl: null, openNow: true, closedHint: null, openingHours: null, pausedUntil: null },
         modes: { dineIn: false, pickup: true, delivery: { enabled: false, available: false } },
         categories: [],
         products: [],

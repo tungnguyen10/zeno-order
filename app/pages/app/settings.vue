@@ -30,6 +30,7 @@ const route = useRoute()
 const router = useRouter()
 const tabItems = [
   { label: 'Cửa hàng', value: 'store' },
+  { label: 'Giờ hoạt động', value: 'hours' },
   { label: 'Nhận món & khu vực giao', value: 'fulfillment' },
   { label: 'Bàn & QR', value: 'tables' },
   { label: 'Thanh toán', value: 'payment' },
@@ -135,6 +136,7 @@ async function save() {
         </div>
       </form>
 
+      <SettingsHoursTab v-if="isOwner && tab === 'hours'" :key="store.id" :store="store" @changed="onFulfillmentChanged" />
       <SettingsFulfillmentTab v-if="tab === 'fulfillment'" :key="store.id" :store="store" @changed="onFulfillmentChanged" />
       <SettingsPaymentTab v-if="isOwner && tab === 'payment'" :key="store.id" :store-id="store.id" :org-id="store.orgId" />
       <SettingsTablesTab v-if="tab === 'tables'" :key="store.id" :store="store" />

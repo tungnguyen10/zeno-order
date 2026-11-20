@@ -1,4 +1,5 @@
-import { boolean, foreignKey, index, integer, pgEnum, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import { boolean, foreignKey, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import type { OpeningHours } from '#shared/store-hours'
 
 export const orgRole = pgEnum('org_role', ['OWNER'])
 export const storeRole = pgEnum('store_role', ['OWNER', 'STAFF'])
@@ -49,6 +50,10 @@ export const stores = pgTable('stores', {
   deliveryEnabled: boolean('delivery_enabled').notNull().default(false),
   logoKey: text('logo_key'),
   paymentTtlMinutes: integer('payment_ttl_minutes').notNull().default(15),
+  // null = no weekly schedule configured; the manual isAcceptingOrders flag governs on its own.
+  openingHours: jsonb('opening_hours').$type<OpeningHours>(),
+  // A manual "pause until" that overrides the schedule while in the future.
+  pausedUntil: timestamp('paused_until', { withTimezone: true }),
   ...timestamps,
 }, t => [
   unique('stores_org_id_id_uq').on(t.orgId, t.id),

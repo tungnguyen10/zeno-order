@@ -46,9 +46,9 @@ export async function addStaff(
 
 type StoreRef = { id: string, orgId: string }
 
-export async function createCategory(store: StoreRef, name: string, opts: { active?: boolean, position?: number } = {}) {
+export async function createCategory(store: StoreRef, name: string, opts: { active?: boolean, position?: number, imageKey?: string | null } = {}) {
   const [row] = await getDb().insert(categories)
-    .values({ orgId: store.orgId, storeId: store.id, name, active: opts.active ?? true, position: opts.position ?? 0 })
+    .values({ orgId: store.orgId, storeId: store.id, name, active: opts.active ?? true, position: opts.position ?? 0, imageKey: opts.imageKey ?? null })
     .returning()
   return row!
 }

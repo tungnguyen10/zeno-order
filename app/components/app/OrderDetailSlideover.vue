@@ -12,6 +12,7 @@ const emit = defineEmits<{ close: [], changed: [] }>()
 
 const api = useApi()
 const toast = useToast()
+const printer = usePrinter()
 
 const detail = ref<OrderDetailResponse | null>(null)
 const loading = ref(false)
@@ -94,6 +95,14 @@ const markPaid = () => run('pay', () =>
   api(`${base.value}/mark-paid`, { method: 'POST', body: { expectedPaymentStatus: order.value!.paymentStatus, method: 'CASH' } }))
 const cancel = () => run('cancel', () =>
   api(`${base.value}/cancel`, { method: 'POST', body: { expectedStatus: order.value!.status, reason: reason.value } }))
+
+async function printTicket() {
+  if (!order.value) return
+  const printed = await printer.print(order.value)
+  if (!printed) {
+    toast.add({ color: 'warning', title: 'Chưa in được', description: 'Hãy kết nối máy in Bluetooth ở trang Đơn hàng rồi thử lại.' })
+  }
+}
 </script>
 
 <template>
@@ -126,6 +135,10 @@ const cancel = () => run('cancel', () =>
           <span class="text-sm text-muted">{{ FULFILLMENT_LABELS[order.fulfillmentType] }}<template v-if="order.tableName"> · {{ order.tableName }}</template> · {{ formatDateTime(order.createdAt) }}</span>
         </div>
 
+        <ZButton variant="secondary" size="sm" icon="i-lucide-printer" class="self-start" @click="printTicket()">
+          In bếp
+        </ZButton>
+
         <section v-if="order.customerName || order.customerPhone || order.address || order.notes" class="flex flex-col gap-2">
           <p v-if="order.customerName" class="font-medium text-default">{{ order.customerName }}</p>
           <ZButton v-if="order.customerPhone" variant="secondary" icon="i-lucide-phone" :to="`tel:${order.customerPhone}`">
@@ -141,6 +154,7 @@ const cancel = () => run('cancel', () =>
               <span class="min-w-0">
                 <span class="font-semibold">{{ item.qty }}×</span> {{ item.name }}
                 <span v-if="item.options.length" class="block text-[13px] text-muted">{{ item.options.join(', ') }}</span>
+                <span v-if="item.note" class="block text-[13px] text-muted">Ghi chú: {{ item.note }}</span>
               </span>
               <span class="shrink-0 font-mono text-sm">{{ formatVnd(item.lineTotalVnd) }}</span>
             </li>

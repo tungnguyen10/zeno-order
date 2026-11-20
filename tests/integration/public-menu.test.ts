@@ -48,7 +48,7 @@ describe('getPublicMenu — content', () => {
   it('returns an empty menu for a fresh store', async () => {
     const t = await createTenant('empty')
     expect(await getPublicMenu(db(), t.store.slug)).toEqual({
-      store: { name: t.store.name, slug: t.store.slug, isAcceptingOrders: false, logoUrl: null },
+      store: { name: t.store.name, slug: t.store.slug, isAcceptingOrders: false, logoUrl: null, openNow: true, closedHint: null, openingHours: null, pausedUntil: null },
       modes: { dineIn: true, pickup: true, delivery: { enabled: false, available: false } },
       categories: [],
       products: [],

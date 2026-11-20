@@ -165,6 +165,23 @@ describe('createOrder — store, mode, table, zone, payment checks', () => {
     expect(await countOf(orders)).toBe(0)
   })
 
+  it('422 STORE_CLOSED while the store is paused, and accepts the order again once the pause is over', async () => {
+    await getDb().update(stores).set({ pausedUntil: new Date(Date.now() + 3_600_000) }).where(eq(stores.id, tenant.store.id))
+    expect(await appError(place(pickupBody(menu)))).toMatchObject({ code: 'STORE_CLOSED', status: 422 })
+    expect(await countOf(orders)).toBe(0)
+
+    await getDb().update(stores).set({ pausedUntil: new Date(Date.now() - 1_000) }).where(eq(stores.id, tenant.store.id))
+    expect((await place(pickupBody(menu))).response.status).toBe('NEW')
+  })
+
+  it('422 STORE_CLOSED when a weekly schedule marks every day closed', async () => {
+    await getDb().update(stores)
+      .set({ openingHours: { enabled: true, days: Array.from({ length: 7 }, () => null) } })
+      .where(eq(stores.id, tenant.store.id))
+    expect(await appError(place(pickupBody(menu)))).toMatchObject({ code: 'STORE_CLOSED', status: 422 })
+    expect(await countOf(orders)).toBe(0)
+  })
+
   it.each([
     ['PICKUP', { pickupEnabled: false }, (m: SeededMenu) => pickupBody(m)],
     ['DINE_IN', { dineInEnabled: false }, (m: SeededMenu) => dineInBody(m)],

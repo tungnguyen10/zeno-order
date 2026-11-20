@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { TAB_LABELS } from '#shared/order-flow'
+import { detectNewOrderIds } from '~/utils/order-board'
 
 definePageMeta({ layout: 'owner', middleware: ['auth', 'has-store'] })
 
@@ -13,6 +14,22 @@ const publicUrl = computed(() => (activeStore.value ? `${config.public.appBaseUr
 const board = useOrderBoard(storeId)
 const { tab, orders, counts, nextCursor, loading, loadingMore, loadError, stale, busyIds } = board
 const { soundOn, toggleSound } = useOrderAlerts(board.newOrderIds, storeId, computed(() => board.lastUpdated.value !== null))
+
+// Auto-print newly arrived orders when enabled, mirroring the sound-alert detection (no print on first load).
+const printer = usePrinter()
+let printSeen: Set<string> | null = null
+watch(storeId, () => { printSeen = null })
+watch([board.newOrderIds, computed(() => board.lastUpdated.value !== null)], ([ids, loaded]) => {
+  if (!loaded) return
+  const fresh = detectNewOrderIds(printSeen, ids)
+  printSeen = new Set(ids)
+  if (!printer.autoPrint.value || fresh.length === 0) return
+  const byId = new Map(orders.value.map(order => [order.id, order]))
+  for (const id of fresh) {
+    const order = byId.get(id)
+    if (order) void printer.print(order)
+  }
+})
 
 const now = ref(Date.now())
 useVisiblePolling(() => board.refresh(), { intervalMs: 5000 })
@@ -39,6 +56,8 @@ const EMPTY: Record<string, string> = {
   <div class="flex flex-col gap-4">
     <AppPageHeader title="Đơn hàng" description="Theo dõi và xử lý đơn của quán.">
       <template #actions>
+        <AppPushToggle />
+        <AppPrinterControl />
         <ZButton
           variant="ghost"
           :icon="soundOn ? 'i-lucide-bell' : 'i-lucide-bell-off'"

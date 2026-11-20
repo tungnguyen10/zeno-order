@@ -11,6 +11,7 @@ const entry = (over: Partial<RecentOrder> = {}): RecentOrder => ({
   storeName: 'Trà sữa Mây',
   totalVnd: 70_000,
   createdAt: new Date(NOW).toISOString(),
+  items: [],
   ...over,
 })
 
@@ -48,5 +49,20 @@ describe('parseRecentOrders', () => {
   it('round-trips valid data and drops malformed entries', () => {
     const raw = JSON.stringify([entry(), { token: 5 }, entry({ token: 't2' })])
     expect(parseRecentOrders(raw).map(item => item.token)).toEqual(['t1', 't2'])
+  })
+
+  it('defaults items to [] for entries saved before re-order existed', () => {
+    const { items: _omit, ...legacy } = entry()
+    const parsed = parseRecentOrders(JSON.stringify([legacy]))
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]!.items).toEqual([])
+  })
+
+  it('keeps a valid item snapshot and drops an entry whose item is malformed', () => {
+    const good = entry({ token: 'g', items: [{ productId: 'p1', name: 'Trà', optionValueIds: ['v1'], quantity: 2, note: '' }] })
+    const bad = entry({ token: 'b', items: [{ productId: '', name: 'x', optionValueIds: [], quantity: 0, note: '' }] as never })
+    const parsed = parseRecentOrders(JSON.stringify([good, bad]))
+    expect(parsed.map(item => item.token)).toEqual(['g'])
+    expect(parsed[0]!.items[0]).toMatchObject({ productId: 'p1', quantity: 2 })
   })
 })
