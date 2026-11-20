@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ngoại tuyến — ZENO</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Work Sans', system-ui, -apple-system, sans-serif;
+    background: #fdf6ec; color: #3e2723;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+    text-align: center;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1c1410; color: #f5ebdd; }
+    .card { background: #2a1f19; box-shadow: 0 4px 12px rgb(0 0 0 / .35); }
+    .retry { background: #d4a373; color: #1c1410; }
+  }
+  .card { background: #fff; border-radius: 16px; padding: 32px 24px; max-width: 360px; width: 100%; box-shadow: 6px 6px 12px #d5c9b8, -6px -6px 12px #fff; }
+  .mark { font-size: 40px; line-height: 1; margin-bottom: 16px; }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  p { font-size: 15px; line-height: 1.5; color: #6d4c41; margin-bottom: 24px; }
+  @media (prefers-color-scheme: dark) { p { color: #c9b8a6; } }
+  .retry {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 44px; padding: 0 20px; border: 0; border-radius: 12px;
+    background: #8b5e3c; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark" aria-hidden="true">☕️</div>
+    <h1>Bạn đang ngoại tuyến</h1>
+    <p>Chưa có kết nối mạng. Kiểm tra wifi hoặc dữ liệu di động rồi thử lại.</p>
+    <button class="retry" onclick="location.reload()">Thử lại</button>
+  </div>
+</body>
+</html>

@@ -66,7 +66,7 @@ describe('GET /api/public/stores/:slug/menu', () => {
     const res = await call('GET', `/api/public/stores/${seed.slug}/menu`)
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('public, max-age=30, s-maxage=60')
-    expect(res.body.store).toEqual({ name: 'Store pub-a', slug: seed.slug, isAcceptingOrders: false, logoUrl: null })
+    expect(res.body.store).toEqual({ name: 'Store pub-a', slug: seed.slug, isAcceptingOrders: false, logoUrl: null, openNow: true, closedHint: null, openingHours: null, pausedUntil: null })
     expect(res.body.modes).toEqual({ dineIn: true, pickup: true, delivery: { enabled: false, available: false } })
     expect(res.body.products).toHaveLength(1)
     expect(res.body.products[0]).toMatchObject({ name: 'Trà sữa trân châu', basePriceVnd: 35000, isAvailable: true })

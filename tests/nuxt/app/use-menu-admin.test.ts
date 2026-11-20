@@ -11,7 +11,7 @@ const product = (overrides: Partial<ProductDTO> = {}): ProductDTO => ({
   basePriceVnd: 35000, isAvailable: true, active: true, position: 0,
   imageUrl: null, optionGroups: [], ...overrides,
 })
-const category: CategoryDTO = { id: 'c1', name: 'Trà', position: 0, active: true }
+const category: CategoryDTO = { id: 'c1', name: 'Trà', position: 0, active: true, imageUrl: null }
 const deferred = <T>() => {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void

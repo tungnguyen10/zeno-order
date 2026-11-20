@@ -28,6 +28,10 @@ export default defineNuxtConfig({
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         { name: 'description', content: 'Đặt món tại bàn qua QR cho quán cafe & trà sữa.' },
         { name: 'apple-mobile-web-app-title', content: 'ZENO' },
+        // Standalone PWA on iOS/Android (also required for iOS Web Push once the app is installed).
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
       ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
@@ -41,6 +45,10 @@ export default defineNuxtConfig({
     public: {
       neonAuthUrl: process.env.NEON_AUTH_BASE_URL ?? '',
       appBaseUrl: process.env.APP_BASE_URL ?? 'http://localhost:3000',
+      // Web Push VAPID public key; empty disables the push opt-in on the client.
+      vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+      // Google Analytics 4 measurement ID (G-XXXXXXXXXX); empty disables tracking entirely.
+      gaMeasurementId: process.env.NUXT_PUBLIC_GA_MEASUREMENT_ID ?? '',
     },
   },
   vite: {

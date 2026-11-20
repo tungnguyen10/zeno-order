@@ -1,10 +1,20 @@
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 import { requireEnv } from '../../utils/env'
 
 export const PRODUCT_IMAGES_BUCKET = 'product-images'
 export const PRIVATE_ASSETS_BUCKET = 'assets'
 
 let client: S3Client | undefined
+
+// Behind a corporate HTTP proxy, the AWS SDK won't reach object storage unless its requests
+// tunnel through the proxy. No proxy env (normal production) → the default handler is used.
+function proxyRequestHandler(): NodeHttpHandler | undefined {
+  const proxy = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy
+  if (!proxy) return undefined
+  return new NodeHttpHandler({ httpsAgent: new HttpsProxyAgent(proxy) })
+}
 
 function getClient(): S3Client {
   client ??= new S3Client({
@@ -16,6 +26,7 @@ function getClient(): S3Client {
       accessKeyId: requireEnv('AWS_ACCESS_KEY_ID'),
       secretAccessKey: requireEnv('AWS_SECRET_ACCESS_KEY'),
     },
+    requestHandler: proxyRequestHandler(),
   })
   return client
 }

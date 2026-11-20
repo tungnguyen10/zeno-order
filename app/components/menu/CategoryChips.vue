@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ items: { id: string | null, name: string }[] }>()
+defineProps<{ items: { id: string | null, name: string, imageUrl?: string | null }[] }>()
 const emit = defineEmits<{ select: [id: string | null] }>()
 const active = ref<string | null | undefined>(undefined)
 
@@ -15,11 +15,15 @@ function pick(id: string | null) {
       <li v-for="item in items" :key="item.id ?? 'other'" class="shrink-0">
         <button
           type="button"
-          class="min-h-11 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary"
-          :class="active === item.id ? 'bg-primary text-(--zeno-on-primary)' : 'bg-(--zeno-surface) text-default ring-1 ring-default'"
+          class="flex min-h-11 items-center gap-2 rounded-full pr-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary"
+          :class="[
+            active === item.id ? 'bg-primary text-(--zeno-on-primary)' : 'bg-(--zeno-surface) text-default ring-1 ring-default',
+            item.imageUrl ? 'pl-1 pr-4' : 'px-4',
+          ]"
           :aria-current="active === item.id ? 'true' : undefined"
           @click="pick(item.id)"
         >
+          <img v-if="item.imageUrl" :src="item.imageUrl" alt="" width="36" height="36" class="size-9 shrink-0 rounded-full object-cover">
           {{ item.name }}
         </button>
       </li>

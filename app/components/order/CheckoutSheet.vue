@@ -27,6 +27,7 @@ const emit = defineEmits<{ refresh: [] }>()
 
 const cart = useCart(props.slug)
 const recent = useRecentOrders()
+const analytics = useAnalytics()
 const formRef = useTemplateRef<Form<CheckoutForm>>('formRef')
 
 const form = reactive<CheckoutForm>({ customer: { name: '', phone: '', address: '' }, deliveryZoneId: null, note: '' })
@@ -125,6 +126,21 @@ async function submit() {
       storeName: props.storeName,
       totalVnd: res.totalVnd,
       createdAt: new Date().toISOString(),
+      items: cart.lines.value.map(line => ({
+        productId: line.productId,
+        name: line.name,
+        optionValueIds: line.optionValueIds,
+        quantity: line.quantity,
+        note: line.note,
+      })),
+    })
+    // Conversion event, no PII: value, fulfillment, payment method and item count only.
+    analytics.track('order_placed', {
+      currency: 'VND',
+      value: res.totalVnd,
+      fulfillment_type: mode.value,
+      payment_method: paymentMethod.value,
+      items: cart.lines.value.length,
     })
     cart.clearAfterSuccess()
     open.value = false

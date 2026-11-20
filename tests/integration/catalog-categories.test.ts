@@ -43,7 +43,7 @@ describe('categories service', () => {
     const t = await createTenant('upd')
     const created = await createCategory(getDb(), ctxOf(t), { name: 'Cũ' })
     const updated = await updateCategory(getDb(), ctxOf(t), created.id, { name: 'Mới', active: false, position: 5 })
-    expect(updated).toEqual({ id: created.id, name: 'Mới', active: false, position: 5 })
+    expect(updated).toEqual({ id: created.id, name: 'Mới', active: false, position: 5, imageUrl: null })
   })
 
   it('cannot update a category of another store or org (NOT_FOUND) and leaves it untouched', async () => {
@@ -66,7 +66,7 @@ describe('category scope boundaries', () => {
     expect((await listCategories(getDb(), ctxOf(t))).map(c => c.id)).toEqual([own.id])
     await expect(updateCategory(getDb(), ctxOf(t), foreign.id, { active: false })).rejects.toMatchObject({ code: 'NOT_FOUND' })
     expect(await listCategories(getDb(), { orgId: t.org.id, storeId: other.id })).toEqual([
-      { id: foreign.id, name: 'Other', position: 12, active: true },
+      { id: foreign.id, name: 'Other', position: 12, active: true, imageUrl: null },
     ])
   })
 

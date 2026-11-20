@@ -50,6 +50,7 @@ function toItem(row: ItemRow): BoardOrderItem {
     name: row.nameSnapshot,
     qty: row.qty,
     options: optionLabels(row.optionsSnapshotJson),
+    note: row.note,
     unitPriceVnd: row.unitPriceVnd,
     lineTotalVnd: row.lineTotalVnd,
   }

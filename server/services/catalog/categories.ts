@@ -6,9 +6,10 @@ import type { DbOrTx } from '../../db/client'
 import { categories } from '../../db/schema'
 import { inStore, listCategoryRows, type CatalogScope } from '../../repositories/catalog'
 import { AppError } from '../../utils/errors'
+import { imageUrlFor } from './product-view'
 
 function toDTO(row: typeof categories.$inferSelect): CategoryDTO {
-  return { id: row.id, name: row.name, position: row.position, active: row.active }
+  return { id: row.id, name: row.name, position: row.position, active: row.active, imageUrl: imageUrlFor(row.imageKey) }
 }
 
 export async function listCategories(db: DbOrTx, scope: CatalogScope): Promise<CategoryDTO[]> {

@@ -9,7 +9,7 @@ mockNuxtImport('useApi', () => () => api)
 
 const store = (overrides: Partial<StoreDetail> = {}): StoreDetail => ({
   id: 's1', orgId: 'o1', name: 'Quán', slug: 'quan', role: 'OWNER', isAcceptingOrders: true,
-  dineInEnabled: true, pickupEnabled: true, deliveryEnabled: false, ...overrides,
+  dineInEnabled: true, pickupEnabled: true, deliveryEnabled: false, openingHours: null, pausedUntil: null, ...overrides,
 })
 const zone = (overrides = {}) => ({ id: 'z1', name: 'Quận 1', feeVnd: 15000, active: true, position: 0, ...overrides })
 

@@ -20,7 +20,7 @@ mockNuxtImport('useRoute', () => () => mocks.route.value!)
 mockNuxtImport('useFetch', () => mocks.fetch)
 
 const menu: PublicMenu = {
-  store: { name: 'Quán A', slug: 'store-a', isAcceptingOrders: true, logoUrl: null },
+  store: { name: 'Quán A', slug: 'store-a', isAcceptingOrders: true, logoUrl: null, openNow: true, closedHint: null, openingHours: null, pausedUntil: null },
   modes: { dineIn: true, pickup: true, delivery: { enabled: false, available: false } },
   categories: [],
   products: [],

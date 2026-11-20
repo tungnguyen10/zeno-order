@@ -35,6 +35,10 @@ export function useMenuAdmin() {
     products.value = products.value.map(item => item.id === product.id ? product : item)
   }
 
+  function replaceCategory(category: CategoryDTO) {
+    categories.value = categories.value.map(item => item.id === category.id ? category : item)
+  }
+
   function currentStoreId() {
     const id = storeId.value
     if (!id) throw new Error('No active store')
@@ -70,5 +74,5 @@ export function useMenuAdmin() {
 
   watch(storeId, refresh, { immediate: true })
 
-  return { storeId, categories, products, status, refresh, addProduct, addCategory, patchProduct, replaceProduct }
+  return { storeId, categories, products, status, refresh, addProduct, addCategory, patchProduct, replaceProduct, replaceCategory }
 }

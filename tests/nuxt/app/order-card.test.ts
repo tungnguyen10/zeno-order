@@ -8,7 +8,7 @@ const order = (over: Partial<BoardOrder> = {}): BoardOrder => ({
   id: 'o1', publicCode: 'K7M2PQ', status: 'NEW', fulfillmentType: 'PICKUP', paymentMethod: 'PAY_ON_RECEIPT', paymentStatus: 'UNPAID',
   latePayment: false, tableName: null, customerName: 'Lan', customerPhone: '0901234567', address: null, notes: 'Ít đá',
   totalVnd: 50_000, createdAt: new Date().toISOString(),
-  items: [{ id: 'i1', name: 'Trà đào', qty: 2, options: ['30% đường', 'Thêm đào'], unitPriceVnd: 25_000, lineTotalVnd: 50_000 }],
+  items: [{ id: 'i1', name: 'Trà đào', qty: 2, options: ['30% đường', 'Thêm đào'], note: null, unitPriceVnd: 25_000, lineTotalVnd: 50_000 }],
   ...over,
 })
 

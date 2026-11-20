@@ -6,6 +6,7 @@ export interface BoardOrderItem {
   name: string
   qty: number
   options: string[]
+  note: string | null
   unitPriceVnd: number
   lineTotalVnd: number
 }

@@ -3,6 +3,7 @@ import { newLineFromProduct } from '~/utils/cart-storage'
 import { groupByCategory } from '#shared/menu-groups'
 import { filterProducts, shouldShowSearch } from '#shared/menu-search'
 import { tableTokenFromQuery } from '#shared/fulfillment-query'
+import { describeOpenState, evaluateOpen } from '#shared/store-hours'
 import type { PublicFulfillment, PublicMenu, PublicProduct } from '#shared/types/catalog'
 
 const route = useRoute()
@@ -39,13 +40,32 @@ const checkoutOpen = ref(false)
 const query = ref('')
 const sheetOpen = ref(false)
 const sheetProduct = ref<PublicProduct | null>(null)
-const canOrder = computed(() => menu.value?.store.isAcceptingOrders ?? false)
+// Re-evaluate opening hours on the device so the store flips open/closed at the exact boundary without a refetch.
+const nowMs = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | undefined
+onMounted(() => { clock = setInterval(() => { nowMs.value = Date.now() }, 30_000) })
+onBeforeUnmount(() => clearInterval(clock))
+
+const openState = computed(() => {
+  const store = menu.value?.store
+  if (!store) return null
+  const pausedUntil = store.pausedUntil ? new Date(store.pausedUntil) : null
+  return evaluateOpen(store.openingHours, pausedUntil, new Date(nowMs.value))
+})
+const openNow = computed(() => openState.value?.open ?? true)
+const canOrder = computed(() => (menu.value?.store.isAcceptingOrders ?? false) && openNow.value)
+const closedByHours = computed(() => (menu.value?.store.isAcceptingOrders ?? false) && !openNow.value)
+const closedHint = computed(() => (openState.value ? describeOpenState(openState.value, new Date(nowMs.value)) : null))
 const tableLabel = computed(() => fulfillment.value?.table?.displayName ?? null)
 const tableInvalid = computed(() => fulfillment.value?.tableError === 'INVALID_TABLE')
 const showSearch = computed(() => shouldShowSearch(menu.value?.products.length ?? 0))
 const visibleProducts = computed(() => menu.value ? filterProducts(menu.value.products, query.value) : [])
 const sections = computed(() => menu.value ? groupByCategory(menu.value.categories, visibleProducts.value) : [])
-const chipItems = computed(() => sections.value.map(section => ({ id: section.id, name: section.name })))
+const chipItems = computed(() => sections.value.map(section => ({
+  id: section.id,
+  name: section.name,
+  imageUrl: menu.value?.categories.find(category => category.id === section.id)?.imageUrl ?? null,
+})))
 watch(slug, () => {
   sheetOpen.value = false
   checkoutOpen.value = false
@@ -94,7 +114,7 @@ async function refreshAll() {
 </script>
 
 <template>
-  <div class="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-5 px-4 pb-28 pt-[calc(1.25rem+env(safe-area-inset-top))]">
+  <div class="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-5 px-4 pb-28 pt-[calc(1.25rem+env(safe-area-inset-top))] lg:max-w-5xl">
     <ZAlert v-if="error" color="error" title="Không tải được menu">
       <template #actions>
         <ZButton variant="secondary" size="sm" icon="i-lucide-refresh-cw" @click="refresh()">Thử lại</ZButton>
@@ -105,7 +125,8 @@ async function refreshAll() {
       <MenuStoreHeader :name="menu.store.name" :is-accepting-orders="menu.store.isAcceptingOrders" :modes="menu.modes" :table-label="tableLabel" />
       <ZAlert v-if="tableInvalid" color="warning" title="Mã QR không hợp lệ hoặc đã bị thu hồi" description="Bạn vẫn xem được menu nhưng chưa gắn với bàn nào. Hãy quét lại mã QR trên bàn hoặc hỏi nhân viên." />
       <ZAlert v-if="!menu.store.isAcceptingOrders" color="warning" title="Quán đang tạm nghỉ" description="Bạn vẫn xem được menu, nhưng chưa đặt món được lúc này." />
-      <OrderRecentOrders :slug="slug" />
+      <ZAlert v-else-if="closedByHours" color="warning" title="Quán đang đóng cửa" :description="closedHint ?? 'Bạn vẫn xem được menu, nhưng chưa đặt món được lúc này.'" />
+      <OrderRecentOrders :slug="slug" :products="menu.products" :can-order="canOrder" @reordered="checkoutOpen = true" />
       <ZInput v-if="showSearch" v-model="query" type="search" icon="i-lucide-search" placeholder="Tìm món" aria-label="Tìm món" autocomplete="off" />
 
       <AppEmptyState v-if="menu.products.length === 0" icon="i-lucide-coffee" title="Menu đang được cập nhật" description="Quán đang thêm món. Bạn quay lại sau ít phút nhé." />
@@ -114,7 +135,7 @@ async function refreshAll() {
       <MenuCategoryChips v-if="chipItems.length > 1" :items="chipItems" @select="scrollToSection" />
       <section v-for="section in sections" :id="`cat-${section.id ?? 'other'}`" :key="section.id ?? 'other'" class="flex scroll-mt-16 flex-col gap-3">
         <h2 class="text-h3 text-default">{{ section.name }}</h2>
-        <ul class="flex flex-col gap-2">
+        <ul class="grid grid-cols-1 gap-2 md:grid-cols-2 md:gap-3 lg:grid-cols-3">
           <MenuProductCard v-for="product in section.products" :key="product.id" :product="product" :can-order="canOrder" @add="onAdd" />
         </ul>
       </section>
